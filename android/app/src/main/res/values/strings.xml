@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Monk Mode</string>
+    <string name="accessibility_service_description">Monk Mode guards your attention by intercepting selected apps and presenting a friction flow before you can open them. No data is collected or transmitted.</string>
+</resources>
