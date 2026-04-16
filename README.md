@@ -155,13 +155,7 @@ The best version of you doesn't need an easy path. It needs a clear mirror and a
 
 That's what this app is.
 
----
 
-## License
-
-MIT — use it, fork it, make it yours.
-
----
 
 <div align="center">
 
