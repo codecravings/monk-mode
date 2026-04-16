@@ -303,7 +303,7 @@ class _StatsGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.35,
+      childAspectRatio: 1.05,
       children: [
         StatCard(
           label: 'Time Stolen',

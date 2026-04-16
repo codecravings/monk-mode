@@ -22,73 +22,77 @@ class StreakCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.monk.withAlpha(80), width: 1),
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'MONK STREAK',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.monk,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${stats.currentStreak}',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 52,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
-                          height: 1,
-                        ),
+              // Streak number + label
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MONK STREAK',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.monk,
+                        letterSpacing: 1.5,
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8, left: 4),
-                        child: Text(
-                          'days',
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${stats.currentStreak}',
                           style: GoogleFonts.spaceGrotesk(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.secondary,
+                            fontSize: 52,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                            height: 1,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8, left: 4),
+                          child: Text(
+                            'days',
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               _FlameIcon(streak: stats.currentStreak),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+          // Mini stats — use Row with spaceBetween + Expanded to prevent overflow
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _MiniStat(
                 label: 'Best',
                 value: '${stats.bestStreak}d',
                 color: AppColors.monkGold,
               ),
-              const SizedBox(width: 24),
               _MiniStat(
-                label: 'Defeated Today',
+                label: 'Today',
                 value: '${stats.todayTemptationsResisted}',
                 color: AppColors.success,
               ),
-              const SizedBox(width: 24),
               _MiniStat(
-                label: 'Total Resisted',
+                label: 'Total',
                 value: '${stats.totalTemptationsResisted}',
                 color: AppColors.secondary,
               ),
@@ -111,22 +115,10 @@ class _FlameIcon extends StatelessWidget {
       isActive ? '🔥' : '💀',
       style: const TextStyle(fontSize: 48),
     )
-        .animate(
-          onPlay: (controller) => controller.repeat(),
-        )
-        .scaleXY(
-          begin: 1.0,
-          end: 1.06,
-          duration: 1200.ms,
-          curve: Curves.easeInOut,
-        )
+        .animate(onPlay: (controller) => controller.repeat())
+        .scaleXY(begin: 1.0, end: 1.06, duration: 1200.ms, curve: Curves.easeInOut)
         .then()
-        .scaleXY(
-          begin: 1.06,
-          end: 1.0,
-          duration: 1200.ms,
-          curve: Curves.easeInOut,
-        );
+        .scaleXY(begin: 1.06, end: 1.0, duration: 1200.ms, curve: Curves.easeInOut);
   }
 }
 

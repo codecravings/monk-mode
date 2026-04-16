@@ -24,43 +24,53 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassCard(
+      // Tighter padding so content fits in grid cells on all screen sizes
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, color: iconColor ?? AppColors.muted, size: 16),
-                const SizedBox(width: 6),
+                Icon(icon, color: iconColor ?? AppColors.muted, size: 14),
+                const SizedBox(width: 5),
               ],
-              Text(
-                label.toUpperCase(),
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.muted,
-                  letterSpacing: 1.2,
+              Flexible(
+                child: Text(
+                  label.toUpperCase(),
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.muted,
+                    letterSpacing: 1.0,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: valueColor ?? AppColors.primary,
-              height: 1,
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: valueColor ?? AppColors.primary,
+                height: 1,
+              ),
             ),
           ),
           if (subtitle != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               subtitle!,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.spaceGrotesk(
-                fontSize: 12,
+                fontSize: 11,
                 color: AppColors.secondary,
               ),
             ),
