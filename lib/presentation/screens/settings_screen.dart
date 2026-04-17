@@ -672,66 +672,124 @@ class _CustomWallpaperBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasImage = path != null && File(path!).existsSync();
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 72,
-          height: 108,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceElevated,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: hasImage
-              ? Image.file(File(path!), fit: BoxFit.cover)
-              : const Center(
-                  child: Icon(Icons.image_outlined,
-                      color: AppColors.muted, size: 28),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Tap the preview itself to replace — always obvious.
+            GestureDetector(
+              onTap: onPick,
+              child: Container(
+                width: 72,
+                height: 108,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: hasImage
+                        ? AppColors.monkGold.withAlpha(120)
+                        : AppColors.border,
+                  ),
                 ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                hasImage ? 'Image set' : 'No image picked',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: hasImage ? AppColors.monkGold : AppColors.muted,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (hasImage)
+                      Image.file(File(path!), fit: BoxFit.cover)
+                    else
+                      const Center(
+                        child: Icon(Icons.image_outlined,
+                            color: AppColors.muted, size: 28),
+                      ),
+                    if (hasImage)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.refresh_rounded,
+                              color: Colors.white, size: 26),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-              Row(
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: onPick,
-                    icon: const Icon(Icons.photo_library_outlined,
-                        size: 18),
-                    label: Text(hasImage ? 'Change' : 'Pick from gallery'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.border),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                  Text(
+                    hasImage ? 'Custom image set' : 'No image picked',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color:
+                          hasImage ? AppColors.monkGold : AppColors.muted,
                     ),
                   ),
-                  if (hasImage) ...[
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: 'Clear',
-                      onPressed: onClear,
-                      icon: const Icon(Icons.delete_outline,
-                          color: AppColors.danger, size: 20),
+                  const SizedBox(height: 4),
+                  Text(
+                    hasImage
+                        ? 'Tap preview or Change to pick a new one.'
+                        : 'Pick an image from your gallery.',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 11,
+                      color: AppColors.muted,
+                      height: 1.4,
                     ),
-                  ],
+                  ),
                 ],
               ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: onPick,
+                icon: Icon(
+                  hasImage
+                      ? Icons.swap_horiz_rounded
+                      : Icons.photo_library_outlined,
+                  size: 18,
+                ),
+                label: Text(hasImage ? 'Change wallpaper' : 'Pick wallpaper'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.surfaceElevated,
+                  foregroundColor: AppColors.primary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: const BorderSide(color: AppColors.border),
+                  ),
+                ),
+              ),
+            ),
+            if (hasImage) ...[
+              const SizedBox(width: 10),
+              OutlinedButton.icon(
+                onPressed: onClear,
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Remove'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  side: BorderSide(color: AppColors.danger.withAlpha(120)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       ],
     );
