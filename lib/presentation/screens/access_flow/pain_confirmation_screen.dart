@@ -36,11 +36,15 @@ class _PainConfirmationScreenState
   }
 
   void _resist() {
-    ref.read(statsProvider.notifier).recordResisted();
-    ref
-        .read(lockedAppsProvider.notifier)
-        .recordAttempt(widget.packageName, false);
-    context.go('/dashboard');
+    ref.read(statsProvider.notifier).recordResisted(
+          packageName: widget.packageName,
+          appName: widget.appName,
+        );
+    ref.read(lockedAppsProvider.notifier).recordAttempt(
+          widget.packageName,
+          opened: false,
+        );
+    context.go('/home');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(

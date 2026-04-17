@@ -53,7 +53,7 @@ class EmergencyPassScreen extends ConsumerWidget {
                 ),
               ),
               const Spacer(),
-              Text('🚨', style: const TextStyle(fontSize: 72))
+              const Text('🚨', style: TextStyle(fontSize: 72))
                   .animate()
                   .fadeIn(duration: 400.ms)
                   .scaleXY(begin: 0.5, curve: Curves.elasticOut),
@@ -171,7 +171,7 @@ class EmergencyPassScreen extends ConsumerWidget {
                 ).animate().fadeIn(delay: 300.ms)
               else
                 ElevatedButton(
-                  onPressed: () => context.go('/dashboard'),
+                  onPressed: () => context.go('/home'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.surface,
                     foregroundColor: AppColors.primary,
@@ -181,7 +181,7 @@ class EmergencyPassScreen extends ConsumerWidget {
                 ).animate().fadeIn(delay: 300.ms),
               const SizedBox(height: 12),
               TextButton(
-                onPressed: () => context.go('/dashboard'),
+                onPressed: () => context.go('/home'),
                 child: Text(
                   'Cancel',
                   style: GoogleFonts.spaceGrotesk(
@@ -199,11 +199,16 @@ class EmergencyPassScreen extends ConsumerWidget {
   }
 
   Future<void> _usePass(BuildContext context, WidgetRef ref) async {
-    ref.read(statsProvider.notifier).recordEmergencyPass();
-    ref
-        .read(lockedAppsProvider.notifier)
-        .recordAttempt(packageName, true);
+    await ref.read(statsProvider.notifier).recordEmergencyPass(
+          packageName: packageName,
+          appName: appName,
+        );
+    await ref.read(lockedAppsProvider.notifier).recordAttempt(
+          packageName,
+          opened: true,
+          usedEmergencyPass: true,
+        );
     await AndroidBridge.launchApp(packageName);
-    if (context.mounted) context.go('/dashboard');
+    if (context.mounted) context.go('/home');
   }
 }

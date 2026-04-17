@@ -20,6 +20,7 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(statsProvider);
+    final displayStreak = ref.read(statsProvider.notifier).displayStreak;
     final lockedApps = ref.watch(lockedAppsProvider);
     final quote = _getDailyQuote();
 
@@ -37,9 +38,16 @@ class DashboardScreen extends ConsumerWidget {
             title: const SizedBox.shrink(),
             actions: [
               IconButton(
-                icon: const Icon(Icons.apps_rounded, color: AppColors.primary),
+                icon: const Icon(Icons.grid_view_rounded,
+                    color: AppColors.primary),
+                onPressed: () => context.push('/app-drawer'),
+                tooltip: 'All Apps',
+              ),
+              IconButton(
+                icon: const Icon(Icons.lock_outline,
+                    color: AppColors.monkGold),
                 onPressed: () => context.push('/app-picker'),
-                tooltip: 'Manage Apps',
+                tooltip: 'Manage Locked',
               ),
               IconButton(
                 icon: const Icon(Icons.settings_outlined,
@@ -55,7 +63,7 @@ class DashboardScreen extends ConsumerWidget {
               delegate: SliverChildListDelegate([
 
                 // ── HERO SECTION ──────────────────────────────────────
-                _HeroSection().animate().fadeIn(duration: 500.ms),
+                const _HeroSection().animate().fadeIn(duration: 500.ms),
                 const SizedBox(height: 28),
 
                 // ── DAILY QUOTE ──────────────────────────────────────
@@ -80,7 +88,7 @@ class DashboardScreen extends ConsumerWidget {
                 ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
                 const SizedBox(height: 20),
 
-                StreakCard(stats: stats)
+                StreakCard(stats: stats, displayStreak: displayStreak)
                     .animate()
                     .fadeIn(delay: 260.ms, duration: 400.ms)
                     .slideY(begin: 0.1),
@@ -93,7 +101,7 @@ class DashboardScreen extends ConsumerWidget {
                     .animate()
                     .fadeIn(delay: 340.ms, duration: 400.ms),
                 const SizedBox(height: 20),
-                _SectionHeader(
+                const _SectionHeader(
                   title: 'This Week',
                   subtitle: 'Resisted vs Opened',
                 ),
@@ -102,7 +110,7 @@ class DashboardScreen extends ConsumerWidget {
                     .animate()
                     .fadeIn(delay: 380.ms, duration: 400.ms),
                 const SizedBox(height: 8),
-                _ChartLegend(),
+                const _ChartLegend(),
                 const SizedBox(height: 20),
                 if (lockedApps.isNotEmpty) ...[
                   _SectionHeader(
@@ -163,7 +171,7 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   String _getDailyQuote() {
-    final quotes = BrutalMessages.dashboardQuotes;
+    const quotes = BrutalMessages.dashboardQuotes;
     final day = DateTime.now().day;
     return quotes[day % quotes.length];
   }
@@ -174,6 +182,8 @@ class DashboardScreen extends ConsumerWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeroSection extends StatelessWidget {
+  const _HeroSection();
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -288,14 +298,18 @@ class _StatsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final weeklyMins = stats.weeklyMinutesWasted;
-    final hoursLabel = weeklyMins >= 60
-        ? '${weeklyMins ~/ 60}h ${weeklyMins % 60}m'
-        : '${weeklyMins}m';
-    final savedMins = (stats.totalTemptationsResisted * 35);
-    final savedLabel = savedMins >= 60
-        ? '${savedMins ~/ 60}h saved'
-        : '${savedMins}m saved';
+    // Real weekly aggregates derived from stored daily records.
+    int weekOpens = 0;
+    int weekResists = 0;
+    final now = DateTime.now();
+    for (int i = 0; i < 7; i++) {
+      final day = now.subtract(Duration(days: i));
+      final r = stats.dailyRecords[UserStats.dateKeyFor(day)];
+      if (r != null) {
+        weekOpens += r.appsOpened;
+        weekResists += r.temptationsResisted;
+      }
+    }
 
     return GridView.count(
       crossAxisCount: 2,
@@ -306,26 +320,26 @@ class _StatsGrid extends StatelessWidget {
       childAspectRatio: 1.05,
       children: [
         StatCard(
-          label: 'Time Stolen',
-          value: hoursLabel,
+          label: 'Opens',
+          value: '$weekOpens',
           subtitle: 'this week',
           valueColor: AppColors.danger,
-          icon: Icons.schedule_rounded,
+          icon: Icons.open_in_new_rounded,
           iconColor: AppColors.danger,
         ),
         StatCard(
-          label: 'Time Saved',
-          value: savedLabel,
-          subtitle: 'by resisting',
+          label: 'Resisted',
+          value: '$weekResists',
+          subtitle: 'this week',
           valueColor: AppColors.success,
-          icon: Icons.savings_rounded,
+          icon: Icons.shield_rounded,
           iconColor: AppColors.success,
         ),
         StatCard(
           label: 'Urges Defeated',
           value: '${stats.totalTemptationsResisted}',
-          subtitle: 'total',
-          icon: Icons.shield_rounded,
+          subtitle: 'all time',
+          icon: Icons.flash_on_rounded,
           iconColor: AppColors.monkGold,
         ),
         StatCard(
@@ -382,12 +396,14 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _ChartLegend extends StatelessWidget {
+  const _ChartLegend();
+
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return const Row(
       children: [
         _LegendDot(color: AppColors.success, label: 'Resisted'),
-        const SizedBox(width: 16),
+        SizedBox(width: 16),
         _LegendDot(color: AppColors.danger, label: 'Opened'),
       ],
     );
@@ -435,7 +451,7 @@ class _EmptyState extends StatelessWidget {
     return Center(
       child: Column(
         children: [
-          Text('☯', style: const TextStyle(fontSize: 56)),
+          const Text('☯', style: TextStyle(fontSize: 56)),
           const SizedBox(height: 16),
           Text(
             'No apps locked yet.',

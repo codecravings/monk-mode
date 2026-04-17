@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../data/datasources/android_bridge.dart';
 import '../../providers/apps_provider.dart';
 import '../../providers/stats_provider.dart';
 
@@ -19,12 +20,7 @@ class RegretMirrorScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statsNotifier = ref.read(statsProvider.notifier);
-    final lastSession = statsNotifier.getLastSessionMinutes(packageName);
-    final weeklyOpens = statsNotifier.getWeeklyOpenCount(packageName);
-    final weeklyHours = statsNotifier.getWeeklyHours(packageName);
-
-    final facts = _buildFacts(appName, lastSession, weeklyOpens, weeklyHours);
+    final usageAsync = ref.watch(appUsageProvider(packageName));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -57,7 +53,7 @@ class RegretMirrorScreen extends ConsumerWidget {
               ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.2, end: 0),
               const SizedBox(height: 8),
               Text(
-                'Here\'s what this app costs you.',
+                "Here's what $appName costs you.",
                 style: GoogleFonts.spaceGrotesk(
                   fontSize: 15,
                   color: AppColors.secondary,
@@ -65,13 +61,37 @@ class RegretMirrorScreen extends ConsumerWidget {
               ).animate().fadeIn(delay: 150.ms),
               const SizedBox(height: 32),
               Expanded(
-                child: ListView.separated(
-                  itemCount: facts.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, i) => _RegretFact(
-                    fact: facts[i],
-                    index: i,
+                child: usageAsync.when(
+                  loading: () => const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                      strokeWidth: 2,
+                    ),
                   ),
+                  error: (_, __) => _UsagePermissionCta(
+                    onGrant: () async {
+                      await AndroidBridge.openUsageStatsSettings();
+                    },
+                  ),
+                  data: (usage) {
+                    if (!usage.granted) {
+                      return _UsagePermissionCta(
+                        onGrant: () async {
+                          await AndroidBridge.openUsageStatsSettings();
+                        },
+                      );
+                    }
+                    final facts = _buildFacts(usage);
+                    if (facts.isEmpty) {
+                      return _EmptyUsage(appName: appName);
+                    }
+                    return ListView.separated(
+                      itemCount: facts.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, i) =>
+                          _RegretFact(fact: facts[i], index: i),
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: 20),
@@ -99,47 +119,61 @@ class RegretMirrorScreen extends ConsumerWidget {
     );
   }
 
-  List<_RegretData> _buildFacts(
-      String appName, int lastMins, int weeklyOpens, int weeklyHours) {
-    return [
-      _RegretData(
+  List<_RegretData> _buildFacts(AppUsageStats usage) {
+    final facts = <_RegretData>[];
+    if (usage.lastSessionMinutes > 0) {
+      facts.add(_RegretData(
         icon: '⏱️',
-        stat: '$lastMins min',
-        label: 'avg session',
-        description: 'Last time you said "just 5 minutes."',
+        stat: '${usage.lastSessionMinutes} min',
+        label: 'last session',
+        description: 'You said "just a minute" last time too.',
         color: AppColors.danger,
-      ),
-      _RegretData(
+      ));
+    }
+    if (usage.openCount > 0) {
+      facts.add(_RegretData(
         icon: '📅',
-        stat: '$weeklyOpens×',
+        stat: '${usage.openCount}×',
         label: 'this week',
-        description: 'You unlocked $appName $weeklyOpens times in 7 days.',
+        description:
+            'You opened $appName ${usage.openCount} times in the last 7 days.',
         color: AppColors.warning,
-      ),
-      _RegretData(
+      ));
+    }
+    if (usage.totalMinutes > 0) {
+      final hours = usage.totalMinutes ~/ 60;
+      final mins = usage.totalMinutes % 60;
+      final timeStr = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
+      facts.add(_RegretData(
         icon: '🕳️',
-        stat: '${weeklyHours}h',
+        stat: timeStr,
         label: 'stolen this week',
         description:
-            '$appName took ${weeklyHours}h from your life this week.',
+            '$appName took $timeStr from your life in 7 days.',
         color: AppColors.danger,
-      ),
-      _RegretData(
-        icon: '🎯',
-        stat: '0',
-        label: 'goals it serves',
-        description: 'You said you would focus today.',
-        color: AppColors.muted,
-      ),
-    ];
+      ));
+    }
+    if (usage.avgSessionMinutes > 0) {
+      facts.add(_RegretData(
+        icon: '📈',
+        stat: '${usage.avgSessionMinutes} min',
+        label: 'avg session',
+        description: 'Every open averages this long. Not "just a quick check."',
+        color: AppColors.warning,
+      ));
+    }
+    return facts;
   }
 
   void _resist(BuildContext context, WidgetRef ref) {
-    ref.read(statsProvider.notifier).recordResisted();
     ref
-        .read(lockedAppsProvider.notifier)
-        .recordAttempt(packageName, false);
-    context.go('/dashboard');
+        .read(statsProvider.notifier)
+        .recordResisted(packageName: packageName, appName: appName);
+    ref.read(lockedAppsProvider.notifier).recordAttempt(
+          packageName,
+          opened: false,
+        );
+    context.go('/home');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -185,10 +219,7 @@ class _RegretFact extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: fact.color.withAlpha(60),
-          width: 1,
-        ),
+        border: Border.all(color: fact.color.withAlpha(60), width: 1),
       ),
       child: Row(
         children: [
@@ -242,6 +273,90 @@ class _RegretFact extends StatelessWidget {
   }
 }
 
+class _UsagePermissionCta extends StatelessWidget {
+  final VoidCallback onGrant;
+
+  const _UsagePermissionCta({required this.onGrant});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('🔒', style: const TextStyle(fontSize: 48)),
+          const SizedBox(height: 16),
+          Text(
+            'Usage Access needed',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'Grant usage access so the Regret Mirror can show real data instead of nothing.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 13,
+                color: AppColors.muted,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: onGrant,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.monkGold,
+              foregroundColor: AppColors.background,
+            ),
+            child: const Text('Enable Usage Access'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyUsage extends StatelessWidget {
+  final String appName;
+
+  const _EmptyUsage({required this.appName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('✨', style: const TextStyle(fontSize: 48)),
+          const SizedBox(height: 12),
+          Text(
+            'No recent usage of $appName.',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 15,
+              color: AppColors.muted,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Clean slate. Keep it that way.',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 13,
+              color: AppColors.muted,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StayStrongButton extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -259,10 +374,7 @@ class _StayStrongButton extends StatelessWidget {
             colors: [Color(0xFF003018), Color(0xFF001A0E)],
           ),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: AppColors.success.withAlpha(100),
-            width: 1,
-          ),
+          border: Border.all(color: AppColors.success.withAlpha(100), width: 1),
         ),
         child: Center(
           child: Text(
@@ -292,11 +404,11 @@ class _BackButton extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             'Back',
-            style: GoogleFonts.spaceGrotesk(fontSize: 13, color: AppColors.muted),
+            style:
+                GoogleFonts.spaceGrotesk(fontSize: 13, color: AppColors.muted),
           ),
         ],
       ),
     );
   }
 }
-

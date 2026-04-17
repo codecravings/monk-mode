@@ -6,8 +6,13 @@ import '../../data/models/user_stats.dart';
 
 class StreakCard extends StatelessWidget {
   final UserStats stats;
+  final int displayStreak;
 
-  const StreakCard({super.key, required this.stats});
+  const StreakCard({
+    super.key,
+    required this.stats,
+    required this.displayStreak,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +54,7 @@ class StreakCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '${stats.currentStreak}',
+                          '$displayStreak',
                           style: GoogleFonts.spaceGrotesk(
                             fontSize: 52,
                             fontWeight: FontWeight.w800,
@@ -73,7 +78,7 @@ class StreakCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _FlameIcon(streak: stats.currentStreak),
+              _FlameIcon(streak: displayStreak),
             ],
           ),
           const SizedBox(height: 14),

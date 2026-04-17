@@ -74,18 +74,28 @@ class _CountdownScreenState extends ConsumerState<CountdownScreen>
   }
 
   Future<void> _openApp() async {
-    ref.read(statsProvider.notifier).recordOpened();
-    ref.read(lockedAppsProvider.notifier).recordAttempt(widget.packageName, true);
+    await ref.read(statsProvider.notifier).recordOpened(
+          packageName: widget.packageName,
+          appName: widget.appName,
+        );
+    await ref.read(lockedAppsProvider.notifier).recordAttempt(
+          widget.packageName,
+          opened: true,
+        );
     await AndroidBridge.launchApp(widget.packageName);
-    if (mounted) context.go('/dashboard');
+    if (mounted) context.go('/home');
   }
 
   void _cancel() {
-    ref.read(statsProvider.notifier).recordResisted();
-    ref
-        .read(lockedAppsProvider.notifier)
-        .recordAttempt(widget.packageName, false);
-    context.go('/dashboard');
+    ref.read(statsProvider.notifier).recordResisted(
+          packageName: widget.packageName,
+          appName: widget.appName,
+        );
+    ref.read(lockedAppsProvider.notifier).recordAttempt(
+          widget.packageName,
+          opened: false,
+        );
+    context.go('/home');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
