@@ -1,20 +1,39 @@
 import 'dart:convert';
 
+enum WallpaperMode { full, dim, blur, black }
+
+extension WallpaperModeX on WallpaperMode {
+  String get label {
+    switch (this) {
+      case WallpaperMode.full:
+        return 'Wallpaper';
+      case WallpaperMode.dim:
+        return 'Dimmed';
+      case WallpaperMode.blur:
+        return 'Blurred';
+      case WallpaperMode.black:
+        return 'Pure Black';
+    }
+  }
+}
+
 class SettingsModel {
   final int countdownSeconds;
-  final int regretIntensity;
+  final int regretIntensity; // 1 = Mild, 2 = Strong, 3 = Brutal
   final bool brutalQuotesOnly;
   final int maxEmergencyPasses;
-  final bool accessibilityGranted;
-  final bool usageStatsGranted;
+  final List<String> pinnedDockApps; // up to 3 package names
+  final WallpaperMode wallpaperMode;
+  final bool showStreakOnHome;
 
   const SettingsModel({
     this.countdownSeconds = 10,
     this.regretIntensity = 3,
     this.brutalQuotesOnly = false,
     this.maxEmergencyPasses = 3,
-    this.accessibilityGranted = false,
-    this.usageStatsGranted = false,
+    this.pinnedDockApps = const [],
+    this.wallpaperMode = WallpaperMode.black,
+    this.showStreakOnHome = true,
   });
 
   Map<String, dynamic> toJson() => {
@@ -22,8 +41,9 @@ class SettingsModel {
         'regretIntensity': regretIntensity,
         'brutalQuotesOnly': brutalQuotesOnly,
         'maxEmergencyPasses': maxEmergencyPasses,
-        'accessibilityGranted': accessibilityGranted,
-        'usageStatsGranted': usageStatsGranted,
+        'pinnedDockApps': pinnedDockApps,
+        'wallpaperMode': wallpaperMode.name,
+        'showStreakOnHome': showStreakOnHome,
       };
 
   factory SettingsModel.fromJson(Map<String, dynamic> json) => SettingsModel(
@@ -31,8 +51,15 @@ class SettingsModel {
         regretIntensity: json['regretIntensity'] as int? ?? 3,
         brutalQuotesOnly: json['brutalQuotesOnly'] as bool? ?? false,
         maxEmergencyPasses: json['maxEmergencyPasses'] as int? ?? 3,
-        accessibilityGranted: json['accessibilityGranted'] as bool? ?? false,
-        usageStatsGranted: json['usageStatsGranted'] as bool? ?? false,
+        pinnedDockApps: (json['pinnedDockApps'] as List?)
+                ?.map((e) => e as String)
+                .toList() ??
+            const [],
+        wallpaperMode: WallpaperMode.values.firstWhere(
+          (m) => m.name == (json['wallpaperMode'] as String?),
+          orElse: () => WallpaperMode.black,
+        ),
+        showStreakOnHome: json['showStreakOnHome'] as bool? ?? true,
       );
 
   String toJsonString() => jsonEncode(toJson());
@@ -45,15 +72,17 @@ class SettingsModel {
     int? regretIntensity,
     bool? brutalQuotesOnly,
     int? maxEmergencyPasses,
-    bool? accessibilityGranted,
-    bool? usageStatsGranted,
+    List<String>? pinnedDockApps,
+    WallpaperMode? wallpaperMode,
+    bool? showStreakOnHome,
   }) =>
       SettingsModel(
         countdownSeconds: countdownSeconds ?? this.countdownSeconds,
         regretIntensity: regretIntensity ?? this.regretIntensity,
         brutalQuotesOnly: brutalQuotesOnly ?? this.brutalQuotesOnly,
         maxEmergencyPasses: maxEmergencyPasses ?? this.maxEmergencyPasses,
-        accessibilityGranted: accessibilityGranted ?? this.accessibilityGranted,
-        usageStatsGranted: usageStatsGranted ?? this.usageStatsGranted,
+        pinnedDockApps: pinnedDockApps ?? this.pinnedDockApps,
+        wallpaperMode: wallpaperMode ?? this.wallpaperMode,
+        showStreakOnHome: showStreakOnHome ?? this.showStreakOnHome,
       );
 }

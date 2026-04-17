@@ -22,16 +22,25 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
   Future<void> setBrutalQuotesOnly(bool value) =>
       update(state.copyWith(brutalQuotesOnly: value));
 
-  Future<void> setAccessibilityGranted(bool value) =>
-      update(state.copyWith(accessibilityGranted: value));
+  Future<void> setWallpaperMode(WallpaperMode mode) =>
+      update(state.copyWith(wallpaperMode: mode));
 
-  Future<void> setUsageStatsGranted(bool value) =>
-      update(state.copyWith(usageStatsGranted: value));
+  Future<void> setShowStreakOnHome(bool value) =>
+      update(state.copyWith(showStreakOnHome: value));
 
-  Future<void> resetEmergencyPasses() async {
-    final stats = _storage.getUserStats();
-    final updated = stats.copyWith(emergencyPassesUsed: 0);
-    await _storage.saveUserStats(updated);
+  Future<void> setDockApps(List<String> packages) {
+    final trimmed = packages.take(3).toList();
+    return update(state.copyWith(pinnedDockApps: trimmed));
+  }
+
+  Future<void> toggleDockApp(String packageName) {
+    final current = List<String>.from(state.pinnedDockApps);
+    if (current.contains(packageName)) {
+      current.remove(packageName);
+    } else if (current.length < 3) {
+      current.add(packageName);
+    }
+    return update(state.copyWith(pinnedDockApps: current));
   }
 }
 
