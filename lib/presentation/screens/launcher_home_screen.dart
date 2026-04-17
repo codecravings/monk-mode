@@ -588,7 +588,7 @@ class _QuickTile extends StatelessWidget {
 }
 
 // ─── Wallpaper background ───────────────────────────────────────────────────
-class _Wallpaper extends StatelessWidget {
+class _Wallpaper extends StatefulWidget {
   final WallpaperMode mode;
   final String? customPath;
   final double dimOpacity;
@@ -602,49 +602,74 @@ class _Wallpaper extends StatelessWidget {
   });
 
   @override
+  State<_Wallpaper> createState() => _WallpaperState();
+}
+
+class _WallpaperState extends State<_Wallpaper> {
+  File? _customFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveCustom();
+  }
+
+  @override
+  void didUpdateWidget(covariant _Wallpaper old) {
+    super.didUpdateWidget(old);
+    if (old.customPath != widget.customPath) _resolveCustom();
+  }
+
+  void _resolveCustom() {
+    final path = widget.customPath;
+    if (path == null) {
+      _customFile = null;
+      return;
+    }
+    final f = File(path);
+    _customFile = f.existsSync() ? f : null;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (mode == WallpaperMode.black) {
-      return Container(color: AppColors.background, child: child);
+    if (widget.mode == WallpaperMode.black) {
+      return Container(color: AppColors.background, child: widget.child);
     }
 
     Widget background = _buildBackground();
-    if (mode == WallpaperMode.blur) {
+    if (widget.mode == WallpaperMode.blur) {
       background = ImageFiltered(
         imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: background,
       );
     }
 
-    // Dim mode is an additional baseline dim on top of whatever the user
-    // picked with the opacity slider.
-    final baseDim = mode == WallpaperMode.dim ? 0.45 : 0.0;
-    final effectiveDim = (baseDim + dimOpacity).clamp(0.0, 0.95);
+    final baseDim = widget.mode == WallpaperMode.dim ? 0.45 : 0.0;
+    final effectiveDim = (baseDim + widget.dimOpacity).clamp(0.0, 0.95);
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        background,
-        if (effectiveDim > 0)
-          Container(color: Colors.black.withValues(alpha: effectiveDim)),
-        child,
-      ],
+    return RepaintBoundary(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          background,
+          if (effectiveDim > 0)
+            Container(color: Colors.black.withValues(alpha: effectiveDim)),
+          widget.child,
+        ],
+      ),
     );
   }
 
   Widget _buildBackground() {
-    if (mode == WallpaperMode.custom) {
-      final path = customPath;
-      if (path != null && File(path).existsSync()) {
-        return Image.file(
-          File(path),
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-        );
-      }
-      // No image picked yet — fall through to stylized gradient.
+    if (widget.mode == WallpaperMode.custom && _customFile != null) {
+      return Image.file(
+        _customFile!,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+      );
     }
     return Container(
-      decoration: BoxDecoration(gradient: _gradientFor(mode)),
+      decoration: BoxDecoration(gradient: _gradientFor(widget.mode)),
     );
   }
 
