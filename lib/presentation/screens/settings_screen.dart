@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/datasources/android_bridge.dart';
+import '../../data/datasources/wallpaper_service.dart';
 import '../../data/models/settings_model.dart';
 import '../providers/apps_provider.dart';
 import '../providers/permissions_provider.dart';
@@ -79,8 +82,22 @@ class SettingsScreen extends ConsumerWidget {
                 const Divider(height: 24),
                 _WallpaperTile(
                   selected: settings.wallpaperMode,
+                  customPath: settings.customWallpaperPath,
+                  dimOpacity: settings.wallpaperDimOpacity,
                   onSelect: (m) =>
                       settingsNotifier.setWallpaperMode(m),
+                  onPickCustom: () async {
+                    final path = await WallpaperService.pickFromGallery();
+                    if (path == null) return;
+                    await settingsNotifier.setCustomWallpaperPath(path);
+                    await settingsNotifier
+                        .setWallpaperMode(WallpaperMode.custom);
+                  },
+                  onClearCustom: () async {
+                    await WallpaperService.clear();
+                    await settingsNotifier.setCustomWallpaperPath(null);
+                  },
+                  onDimChanged: settingsNotifier.setWallpaperDimOpacity,
                 ),
                 const Divider(height: 24),
                 _SwitchTile(
@@ -541,9 +558,22 @@ class _PermissionTile extends StatelessWidget {
 
 class _WallpaperTile extends StatelessWidget {
   final WallpaperMode selected;
+  final String? customPath;
+  final double dimOpacity;
   final ValueChanged<WallpaperMode> onSelect;
+  final VoidCallback onPickCustom;
+  final VoidCallback onClearCustom;
+  final ValueChanged<double> onDimChanged;
 
-  const _WallpaperTile({required this.selected, required this.onSelect});
+  const _WallpaperTile({
+    required this.selected,
+    required this.customPath,
+    required this.dimOpacity,
+    required this.onSelect,
+    required this.onPickCustom,
+    required this.onClearCustom,
+    required this.onDimChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -551,7 +581,7 @@ class _WallpaperTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Wallpaper Mode',
+          'Wallpaper',
           style: GoogleFonts.spaceGrotesk(
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -602,6 +632,156 @@ class _WallpaperTile extends StatelessWidget {
               ),
             );
           }).toList(),
+        ),
+        if (selected == WallpaperMode.custom) ...[
+          const SizedBox(height: 14),
+          _CustomWallpaperBlock(
+            path: customPath,
+            onPick: onPickCustom,
+            onClear: onClearCustom,
+          ),
+        ],
+        const SizedBox(height: 18),
+        _DimSlider(value: dimOpacity, onChanged: onDimChanged),
+      ],
+    );
+  }
+}
+
+class _CustomWallpaperBlock extends StatelessWidget {
+  final String? path;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  const _CustomWallpaperBlock({
+    required this.path,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = path != null && File(path!).existsSync();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 72,
+          height: 108,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: hasImage
+              ? Image.file(File(path!), fit: BoxFit.cover)
+              : const Center(
+                  child: Icon(Icons.image_outlined,
+                      color: AppColors.muted, size: 28),
+                ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                hasImage ? 'Image set' : 'No image picked',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: hasImage ? AppColors.monkGold : AppColors.muted,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onPick,
+                    icon: const Icon(Icons.photo_library_outlined,
+                        size: 18),
+                    label: Text(hasImage ? 'Change' : 'Pick from gallery'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                  if (hasImage) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Clear',
+                      onPressed: onClear,
+                      icon: const Icon(Icons.delete_outline,
+                          color: AppColors.danger, size: 20),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DimSlider extends StatelessWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _DimSlider({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = (value * 100).round();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Dim Overlay',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '$pct%',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.monkGold,
+              ),
+            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: AppColors.monkGold,
+            inactiveTrackColor: AppColors.border,
+            thumbColor: AppColors.monkGold,
+            overlayColor: AppColors.monkGold.withAlpha(50),
+          ),
+          child: Slider(
+            value: value,
+            min: 0,
+            max: 0.85,
+            divisions: 17,
+            onChanged: onChanged,
+          ),
+        ),
+        Text(
+          'Darken the wallpaper for more focus.',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 11,
+            color: AppColors.muted,
+          ),
         ),
       ],
     );

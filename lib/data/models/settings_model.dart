@@ -1,21 +1,25 @@
 import 'dart:convert';
 
-enum WallpaperMode { full, dim, blur, black }
+enum WallpaperMode { full, dim, blur, custom, black }
 
 extension WallpaperModeX on WallpaperMode {
   String get label {
     switch (this) {
       case WallpaperMode.full:
-        return 'Wallpaper';
+        return 'Stylized';
       case WallpaperMode.dim:
         return 'Dimmed';
       case WallpaperMode.blur:
         return 'Blurred';
+      case WallpaperMode.custom:
+        return 'Custom Image';
       case WallpaperMode.black:
         return 'Pure Black';
     }
   }
 }
+
+const Object _kSentinel = Object();
 
 class SettingsModel {
   final int countdownSeconds;
@@ -25,6 +29,8 @@ class SettingsModel {
   final List<String> pinnedDockApps; // up to 3 package names
   final WallpaperMode wallpaperMode;
   final bool showStreakOnHome;
+  final String? customWallpaperPath;
+  final double wallpaperDimOpacity; // 0.0–0.85
 
   const SettingsModel({
     this.countdownSeconds = 10,
@@ -34,6 +40,8 @@ class SettingsModel {
     this.pinnedDockApps = const [],
     this.wallpaperMode = WallpaperMode.black,
     this.showStreakOnHome = true,
+    this.customWallpaperPath,
+    this.wallpaperDimOpacity = 0.0,
   });
 
   Map<String, dynamic> toJson() => {
@@ -44,6 +52,8 @@ class SettingsModel {
         'pinnedDockApps': pinnedDockApps,
         'wallpaperMode': wallpaperMode.name,
         'showStreakOnHome': showStreakOnHome,
+        'customWallpaperPath': customWallpaperPath,
+        'wallpaperDimOpacity': wallpaperDimOpacity,
       };
 
   factory SettingsModel.fromJson(Map<String, dynamic> json) => SettingsModel(
@@ -60,6 +70,9 @@ class SettingsModel {
           orElse: () => WallpaperMode.black,
         ),
         showStreakOnHome: json['showStreakOnHome'] as bool? ?? true,
+        customWallpaperPath: json['customWallpaperPath'] as String?,
+        wallpaperDimOpacity:
+            (json['wallpaperDimOpacity'] as num?)?.toDouble() ?? 0.0,
       );
 
   String toJsonString() => jsonEncode(toJson());
@@ -75,6 +88,8 @@ class SettingsModel {
     List<String>? pinnedDockApps,
     WallpaperMode? wallpaperMode,
     bool? showStreakOnHome,
+    Object? customWallpaperPath = _kSentinel,
+    double? wallpaperDimOpacity,
   }) =>
       SettingsModel(
         countdownSeconds: countdownSeconds ?? this.countdownSeconds,
@@ -84,5 +99,9 @@ class SettingsModel {
         pinnedDockApps: pinnedDockApps ?? this.pinnedDockApps,
         wallpaperMode: wallpaperMode ?? this.wallpaperMode,
         showStreakOnHome: showStreakOnHome ?? this.showStreakOnHome,
+        customWallpaperPath: identical(customWallpaperPath, _kSentinel)
+            ? this.customWallpaperPath
+            : customWallpaperPath as String?,
+        wallpaperDimOpacity: wallpaperDimOpacity ?? this.wallpaperDimOpacity,
       );
 }

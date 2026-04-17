@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -63,6 +64,8 @@ class _LauncherHomeScreenState extends ConsumerState<LauncherHomeScreen> {
       backgroundColor: AppColors.background,
       body: _Wallpaper(
         mode: settings.wallpaperMode,
+        customPath: settings.customWallpaperPath,
+        dimOpacity: settings.wallpaperDimOpacity,
         child: SafeArea(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -394,6 +397,7 @@ class _Dock extends ConsumerWidget {
               }
               return _DockSlot(
                 onTap: () => _launch(context, ref, app),
+                onLongPress: () => _unpin(context, ref, app),
                 child: _DockGlyph(app: app),
               );
             }).toList(),
@@ -416,6 +420,26 @@ class _Dock extends ConsumerWidget {
               color: AppColors.muted,
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _unpin(BuildContext context, WidgetRef ref, AppInfo app) {
+    ref.read(settingsProvider.notifier).unpinDockApp(app.packageName);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Unpinned ${app.appName}',
+          style: GoogleFonts.spaceGrotesk(),
+        ),
+        backgroundColor: AppColors.surface,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        action: SnackBarAction(
+          label: 'Edit dock',
+          textColor: AppColors.monkGold,
+          onPressed: () => context.push('/dock-picker'),
         ),
       ),
     );
@@ -450,14 +474,20 @@ class _Dock extends ConsumerWidget {
 
 class _DockSlot extends StatelessWidget {
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final Widget child;
 
-  const _DockSlot({required this.onTap, required this.child});
+  const _DockSlot({
+    required this.onTap,
+    this.onLongPress,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(14),
       child: Container(
         width: 64,
@@ -560,41 +590,62 @@ class _QuickTile extends StatelessWidget {
 // ─── Wallpaper background ───────────────────────────────────────────────────
 class _Wallpaper extends StatelessWidget {
   final WallpaperMode mode;
+  final String? customPath;
+  final double dimOpacity;
   final Widget child;
 
-  const _Wallpaper({required this.mode, required this.child});
+  const _Wallpaper({
+    required this.mode,
+    required this.customPath,
+    required this.dimOpacity,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
-    switch (mode) {
-      case WallpaperMode.black:
-        return Container(color: AppColors.background, child: child);
-      case WallpaperMode.full:
-      case WallpaperMode.dim:
-      case WallpaperMode.blur:
-        // System wallpaper access would require a platform-side fetch; for now
-        // we fall back to a stylized gradient tuned to each mode so the UX is
-        // visually distinct without blocking on native wallpaper retrieval.
-        final gradient = _gradientFor(mode);
-        Widget background = Container(
-          decoration: BoxDecoration(gradient: gradient),
-        );
-        if (mode == WallpaperMode.blur) {
-          background = BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: background,
-          );
-        }
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            background,
-            if (mode == WallpaperMode.dim)
-              Container(color: Colors.black.withAlpha(120)),
-            child,
-          ],
-        );
+    if (mode == WallpaperMode.black) {
+      return Container(color: AppColors.background, child: child);
     }
+
+    Widget background = _buildBackground();
+    if (mode == WallpaperMode.blur) {
+      background = ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: background,
+      );
+    }
+
+    // Dim mode is an additional baseline dim on top of whatever the user
+    // picked with the opacity slider.
+    final baseDim = mode == WallpaperMode.dim ? 0.45 : 0.0;
+    final effectiveDim = (baseDim + dimOpacity).clamp(0.0, 0.95);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        background,
+        if (effectiveDim > 0)
+          Container(color: Colors.black.withValues(alpha: effectiveDim)),
+        child,
+      ],
+    );
+  }
+
+  Widget _buildBackground() {
+    if (mode == WallpaperMode.custom) {
+      final path = customPath;
+      if (path != null && File(path).existsSync()) {
+        return Image.file(
+          File(path),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        );
+      }
+      // No image picked yet — fall through to stylized gradient.
+    }
+    return Container(
+      decoration: BoxDecoration(gradient: _gradientFor(mode)),
+    );
   }
 
   LinearGradient _gradientFor(WallpaperMode mode) {
@@ -617,9 +668,10 @@ class _Wallpaper extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [Color(0xFF1A1A22), Color(0xFF080810)],
         );
+      case WallpaperMode.custom:
       case WallpaperMode.black:
         return const LinearGradient(
-          colors: [Color(0xFF000000), Color(0xFF000000)],
+          colors: [Color(0xFF0A0A0A), Color(0xFF000000)],
         );
     }
   }
