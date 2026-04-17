@@ -28,6 +28,12 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
   Future<void> setShowStreakOnHome(bool value) =>
       update(state.copyWith(showStreakOnHome: value));
 
+  Future<void> setCustomWallpaperPath(String? path) =>
+      update(state.copyWith(customWallpaperPath: path));
+
+  Future<void> setWallpaperDimOpacity(double opacity) =>
+      update(state.copyWith(wallpaperDimOpacity: opacity.clamp(0.0, 0.85)));
+
   Future<void> setDockApps(List<String> packages) {
     final trimmed = packages.take(3).toList();
     return update(state.copyWith(pinnedDockApps: trimmed));
@@ -39,6 +45,28 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
       current.remove(packageName);
     } else if (current.length < 3) {
       current.add(packageName);
+    }
+    return update(state.copyWith(pinnedDockApps: current));
+  }
+
+  Future<void> unpinDockApp(String packageName) {
+    final current = List<String>.from(state.pinnedDockApps)
+      ..remove(packageName);
+    return update(state.copyWith(pinnedDockApps: current));
+  }
+
+  /// Replace `oldPackage` in the dock with `newPackage`, preserving slot order.
+  /// If `oldPackage` is not pinned, falls back to an append (if room).
+  Future<void> replaceDockApp({
+    required String oldPackage,
+    required String newPackage,
+  }) {
+    final current = List<String>.from(state.pinnedDockApps);
+    final idx = current.indexOf(oldPackage);
+    if (idx >= 0) {
+      current[idx] = newPackage;
+    } else if (current.length < 3) {
+      current.add(newPackage);
     }
     return update(state.copyWith(pinnedDockApps: current));
   }

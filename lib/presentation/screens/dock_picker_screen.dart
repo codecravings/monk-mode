@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/models/app_info.dart';
 import '../providers/apps_provider.dart';
 import '../providers/settings_provider.dart';
 
@@ -46,24 +47,19 @@ class _DockPickerScreenState extends ConsumerState<DockPickerScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pick up to 3 apps for your home dock. Locked apps are hidden here.',
+                  'Pick up to 3 apps for your home dock. Tap a pinned app to unpin. When the dock is full, tap any new app to replace one.',
                   style: GoogleFonts.spaceGrotesk(
                     fontSize: 13,
                     color: AppColors.muted,
                     height: 1.5,
                   ),
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  '${pinned.length}/3 pinned',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: pinned.length >= 3
-                        ? AppColors.warning
-                        : AppColors.monkGold,
-                    letterSpacing: 1,
-                  ),
+                const SizedBox(height: 12),
+                _PinnedPreview(
+                  pinned: pinned,
+                  onRemove: (pkg) => ref
+                      .read(settingsProvider.notifier)
+                      .unpinDockApp(pkg),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -131,17 +127,13 @@ class _DockPickerScreenState extends ConsumerState<DockPickerScreen> {
                   itemBuilder: (context, i) {
                     final app = filtered[i];
                     final isPinned = pinned.contains(app.packageName);
-                    final atLimit = pinned.length >= 3 && !isPinned;
                     return _DockAppRow(
                       letter: app.appName.isNotEmpty
                           ? app.appName[0].toUpperCase()
                           : '?',
                       name: app.appName,
                       pinned: isPinned,
-                      disabled: atLimit,
-                      onToggle: () => ref
-                          .read(settingsProvider.notifier)
-                          .toggleDockApp(app.packageName),
+                      onTap: () => _handleTap(app, apps, pinned),
                     );
                   },
                 );
@@ -152,81 +144,261 @@ class _DockPickerScreenState extends ConsumerState<DockPickerScreen> {
       ),
     );
   }
+
+  Future<void> _handleTap(
+    AppInfo app,
+    List<AppInfo> allApps,
+    List<String> pinned,
+  ) async {
+    final notifier = ref.read(settingsProvider.notifier);
+    final isPinned = pinned.contains(app.packageName);
+    if (isPinned) {
+      await notifier.unpinDockApp(app.packageName);
+      return;
+    }
+    if (pinned.length < 3) {
+      await notifier.toggleDockApp(app.packageName);
+      return;
+    }
+    // Full dock: ask which pinned app to swap out.
+    final byPkg = {for (final a in allApps) a.packageName: a};
+    final replaceTarget = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _ReplaceSheet(
+        incoming: app,
+        pinned: pinned
+            .map((p) => byPkg[p])
+            .whereType<AppInfo>()
+            .toList(),
+      ),
+    );
+    if (replaceTarget == null || !mounted) return;
+    await notifier.replaceDockApp(
+      oldPackage: replaceTarget,
+      newPackage: app.packageName,
+    );
+    if (!mounted) return;
+    final replacedName = byPkg[replaceTarget]?.appName ?? 'app';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${app.appName} replaced $replacedName',
+          style: GoogleFonts.spaceGrotesk(),
+        ),
+        backgroundColor: AppColors.surface,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+}
+
+class _PinnedPreview extends StatelessWidget {
+  final List<String> pinned;
+  final ValueChanged<String> onRemove;
+
+  const _PinnedPreview({required this.pinned, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          '${pinned.length}/3 pinned',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: pinned.length >= 3 ? AppColors.warning : AppColors.monkGold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: pinned
+                  .map((pkg) => Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: InputChip(
+                          label: Text(
+                            _shortName(pkg),
+                            style: GoogleFonts.spaceGrotesk(fontSize: 12),
+                          ),
+                          onDeleted: () => onRemove(pkg),
+                          deleteIconColor: AppColors.muted,
+                          backgroundColor: AppColors.surfaceElevated,
+                          side: const BorderSide(color: AppColors.border),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _shortName(String pkg) {
+    final parts = pkg.split('.');
+    return parts.isNotEmpty ? parts.last : pkg;
+  }
 }
 
 class _DockAppRow extends StatelessWidget {
   final String letter;
   final String name;
   final bool pinned;
-  final bool disabled;
-  final VoidCallback onToggle;
+  final VoidCallback onTap;
 
   const _DockAppRow({
     required this.letter,
     required this.name,
     required this.pinned,
-    required this.disabled,
-    required this.onToggle,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: disabled ? 0.4 : 1,
-      child: InkWell(
-        onTap: disabled ? null : onToggle,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: pinned
-                  ? AppColors.monkGold.withAlpha(120)
-                  : AppColors.border,
-              width: 1,
-            ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: pinned
+                ? AppColors.monkGold.withAlpha(120)
+                : AppColors.border,
+            width: 1,
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Text(
-                  letter,
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.secondary,
-                  ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Text(
+                letter,
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.secondary,
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  name,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                name,
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+            Icon(
+              pinned ? Icons.push_pin : Icons.push_pin_outlined,
+              color: pinned ? AppColors.monkGold : AppColors.muted,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReplaceSheet extends StatelessWidget {
+  final AppInfo incoming;
+  final List<AppInfo> pinned;
+
+  const _ReplaceSheet({required this.incoming, required this.pinned});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Dock is full',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Which app should ${incoming.appName} replace?',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 13,
+                color: AppColors.muted,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ...pinned.map(
+              (app) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Text(
+                    app.appName.isNotEmpty
+                        ? app.appName[0].toUpperCase()
+                        : '?',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.secondary,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  app.appName,
                   style: GoogleFonts.spaceGrotesk(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.primary,
                   ),
                 ),
+                trailing: const Icon(
+                  Icons.swap_horiz_rounded,
+                  color: AppColors.muted,
+                ),
+                onTap: () => Navigator.pop(context, app.packageName),
               ),
-              Icon(
-                pinned ? Icons.push_pin : Icons.push_pin_outlined,
-                color: pinned ? AppColors.monkGold : AppColors.muted,
-                size: 20,
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.spaceGrotesk(color: AppColors.muted),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
