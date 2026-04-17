@@ -84,17 +84,9 @@ class SettingsScreen extends ConsumerWidget {
                   selected: settings.wallpaperMode,
                   customPath: settings.customWallpaperPath,
                   dimOpacity: settings.wallpaperDimOpacity,
-                  onSelect: (m) async {
-                    await settingsNotifier.setWallpaperMode(m);
-                    // Auto-open picker if user chose Custom but hasn't set
-                    // an image yet — saves a confusing extra step.
-                    if (m == WallpaperMode.custom &&
-                        settings.customWallpaperPath == null) {
-                      final path = await WallpaperService.pickFromGallery();
-                      if (path != null) {
-                        await settingsNotifier.setCustomWallpaperPath(path);
-                      }
-                    }
+                  onSelect: (m) {
+                    // Sync fire-and-forget — no awaits in the tap handler.
+                    settingsNotifier.setWallpaperMode(m);
                   },
                   onPickCustom: () async {
                     final path = await WallpaperService.pickFromGallery();
@@ -807,26 +799,16 @@ class _DimSlider extends StatefulWidget {
 }
 
 class _DimSliderState extends State<_DimSlider> {
-  late double _live;
+  // When null, the slider mirrors widget.value from the parent. While the
+  // user is actively dragging, this holds the in-flight drag value so the UI
+  // can animate smoothly without flushing to SharedPreferences every tick.
+  double? _dragValue;
 
-  @override
-  void initState() {
-    super.initState();
-    _live = widget.value;
-  }
-
-  @override
-  void didUpdateWidget(covariant _DimSlider old) {
-    super.didUpdateWidget(old);
-    // Sync if changed externally (e.g. reset).
-    if (widget.value != old.value && widget.value != _live) {
-      _live = widget.value;
-    }
-  }
+  double get _effective => _dragValue ?? widget.value;
 
   @override
   Widget build(BuildContext context) {
-    final pct = (_live * 100).round();
+    final pct = (_effective * 100).round();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -859,12 +841,15 @@ class _DimSliderState extends State<_DimSlider> {
             overlayColor: AppColors.monkGold.withAlpha(50),
           ),
           child: Slider(
-            value: _live,
+            value: _effective.clamp(0.0, 0.85),
             min: 0,
             max: 0.85,
             divisions: 17,
-            onChanged: (v) => setState(() => _live = v),
-            onChangeEnd: widget.onChanged,
+            onChanged: (v) => setState(() => _dragValue = v),
+            onChangeEnd: (v) {
+              widget.onChanged(v);
+              setState(() => _dragValue = null);
+            },
           ),
         ),
         Text(
