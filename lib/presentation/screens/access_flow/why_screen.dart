@@ -7,7 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/usage_record.dart';
 import '../../providers/access_flow_provider.dart';
 
-class WhyScreen extends ConsumerWidget {
+class WhyScreen extends ConsumerStatefulWidget {
   final String packageName;
   final String appName;
 
@@ -18,9 +18,25 @@ class WhyScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WhyScreen> createState() => _WhyScreenState();
+}
+
+class _WhyScreenState extends ConsumerState<WhyScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(accessFlowProvider.notifier)
+          .startFlow(widget.packageName, widget.appName);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final notifier = ref.read(accessFlowProvider.notifier);
-    notifier.startFlow(packageName, appName);
+    final packageName = widget.packageName;
+    final appName = widget.appName;
 
     return Scaffold(
       backgroundColor: AppColors.background,

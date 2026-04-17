@@ -30,8 +30,8 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
 
   Future<void> resetEmergencyPasses() async {
     final stats = _storage.getUserStats();
-    stats.emergencyPassesUsed = 0;
-    await _storage.saveUserStats(stats);
+    final updated = stats.copyWith(emergencyPassesUsed: 0);
+    await _storage.saveUserStats(updated);
   }
 }
 

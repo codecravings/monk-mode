@@ -28,11 +28,11 @@ extension DailyScoreLabel on DailyScore {
 
 class DailyRecord {
   final String dateKey;
-  int temptationsResisted;
-  int appsOpened;
-  int emergencyPassesUsed;
+  final int temptationsResisted;
+  final int appsOpened;
+  final int emergencyPassesUsed;
 
-  DailyRecord({
+  const DailyRecord({
     required this.dateKey,
     this.temptationsResisted = 0,
     this.appsOpened = 0,
@@ -47,6 +47,18 @@ class DailyRecord {
     if (resistRatio >= 0.4) return DailyScore.slipping;
     return DailyScore.lost;
   }
+
+  DailyRecord copyWith({
+    int? temptationsResisted,
+    int? appsOpened,
+    int? emergencyPassesUsed,
+  }) =>
+      DailyRecord(
+        dateKey: dateKey,
+        temptationsResisted: temptationsResisted ?? this.temptationsResisted,
+        appsOpened: appsOpened ?? this.appsOpened,
+        emergencyPassesUsed: emergencyPassesUsed ?? this.emergencyPassesUsed,
+      );
 
   Map<String, dynamic> toJson() => {
         'dateKey': dateKey,
@@ -64,39 +76,37 @@ class DailyRecord {
 }
 
 class UserStats {
-  int currentStreak;
-  int bestStreak;
-  DateTime? lastStreakDate;
-  int emergencyPassesUsed;
-  int totalTemptationsResisted;
-  int totalActualOpens;
-  Map<String, DailyRecord> dailyRecords;
+  final int currentStreak;
+  final int bestStreak;
+  final DateTime? lastStreakDate;
+  final int emergencyPassesUsed;
+  final int totalTemptationsResisted;
+  final int totalActualOpens;
+  final Map<String, DailyRecord> dailyRecords;
 
-  UserStats({
+  const UserStats({
     this.currentStreak = 0,
     this.bestStreak = 0,
     this.lastStreakDate,
     this.emergencyPassesUsed = 0,
     this.totalTemptationsResisted = 0,
     this.totalActualOpens = 0,
-    Map<String, DailyRecord>? dailyRecords,
-  }) : dailyRecords = dailyRecords ?? {};
+    this.dailyRecords = const {},
+  });
 
   int get emergencyPassesRemaining =>
       (3 - emergencyPassesUsed).clamp(0, 3);
 
-  DailyRecord get todayRecord {
-    final key = _todayKey();
-    return dailyRecords.putIfAbsent(key, () => DailyRecord(dateKey: key));
-  }
-
-  int get todayTemptationsResisted => todayRecord.temptationsResisted;
-  int get todayAppsOpened => todayRecord.appsOpened;
-
-  static String _todayKey() {
+  static String todayKey() {
     final now = DateTime.now();
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
+
+  DailyRecord get todayRecord =>
+      dailyRecords[todayKey()] ?? DailyRecord(dateKey: todayKey());
+
+  int get todayTemptationsResisted => todayRecord.temptationsResisted;
+  int get todayAppsOpened => todayRecord.appsOpened;
 
   int get weeklyMinutesWasted {
     final now = DateTime.now();
@@ -120,8 +130,7 @@ class UserStats {
         'emergencyPassesUsed': emergencyPassesUsed,
         'totalTemptationsResisted': totalTemptationsResisted,
         'totalActualOpens': totalActualOpens,
-        'dailyRecords': dailyRecords
-            .map((k, v) => MapEntry(k, v.toJson())),
+        'dailyRecords': dailyRecords.map((k, v) => MapEntry(k, v.toJson())),
       };
 
   factory UserStats.fromJson(Map<String, dynamic> json) {
@@ -154,7 +163,8 @@ class UserStats {
   UserStats copyWith({
     int? currentStreak,
     int? bestStreak,
-    DateTime? lastStreakDate,
+    // Use Object? so callers can explicitly pass null to clear the date
+    Object? lastStreakDate = _keep,
     int? emergencyPassesUsed,
     int? totalTemptationsResisted,
     int? totalActualOpens,
@@ -163,7 +173,9 @@ class UserStats {
       UserStats(
         currentStreak: currentStreak ?? this.currentStreak,
         bestStreak: bestStreak ?? this.bestStreak,
-        lastStreakDate: lastStreakDate ?? this.lastStreakDate,
+        lastStreakDate: lastStreakDate == _keep
+            ? this.lastStreakDate
+            : lastStreakDate as DateTime?,
         emergencyPassesUsed: emergencyPassesUsed ?? this.emergencyPassesUsed,
         totalTemptationsResisted:
             totalTemptationsResisted ?? this.totalTemptationsResisted,
@@ -171,3 +183,6 @@ class UserStats {
         dailyRecords: dailyRecords ?? Map.from(this.dailyRecords),
       );
 }
+
+// Sentinel value used by copyWith to distinguish "not provided" from null
+const _keep = Object();

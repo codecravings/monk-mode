@@ -33,11 +33,13 @@ class StatsNotifier extends StateNotifier<UserStats> {
         appsOpened: opened,
       );
     }
+    final yesterday = now.subtract(const Duration(days: 1));
     final updated = state.copyWith(
       currentStreak: 3,
       bestStreak: 8,
       totalTemptationsResisted: 34,
       totalActualOpens: 12,
+      lastStreakDate: yesterday,
       dailyRecords: records,
     );
     state = updated;
@@ -46,12 +48,14 @@ class StatsNotifier extends StateNotifier<UserStats> {
 
   Future<void> recordResisted() async {
     final today = state.todayRecord;
-    today.temptationsResisted++;
+    final updatedRecord = today.copyWith(
+      temptationsResisted: today.temptationsResisted + 1,
+    );
     final updated = _updateStreak(state.copyWith(
       totalTemptationsResisted: state.totalTemptationsResisted + 1,
       dailyRecords: {
         ...state.dailyRecords,
-        today.dateKey: today,
+        today.dateKey: updatedRecord,
       },
     ));
     state = updated;
@@ -60,12 +64,14 @@ class StatsNotifier extends StateNotifier<UserStats> {
 
   Future<void> recordOpened() async {
     final today = state.todayRecord;
-    today.appsOpened++;
+    final updatedRecord = today.copyWith(
+      appsOpened: today.appsOpened + 1,
+    );
     final updated = state.copyWith(
       totalActualOpens: state.totalActualOpens + 1,
       dailyRecords: {
         ...state.dailyRecords,
-        today.dateKey: today,
+        today.dateKey: updatedRecord,
       },
     );
     state = updated;
@@ -74,13 +80,15 @@ class StatsNotifier extends StateNotifier<UserStats> {
 
   Future<void> recordEmergencyPass() async {
     final today = state.todayRecord;
-    today.emergencyPassesUsed++;
+    final updatedRecord = today.copyWith(
+      emergencyPassesUsed: today.emergencyPassesUsed + 1,
+    );
     final updated = state.copyWith(
       emergencyPassesUsed: state.emergencyPassesUsed + 1,
       totalActualOpens: state.totalActualOpens + 1,
       dailyRecords: {
         ...state.dailyRecords,
-        today.dateKey: today,
+        today.dateKey: updatedRecord,
       },
     );
     state = updated;
