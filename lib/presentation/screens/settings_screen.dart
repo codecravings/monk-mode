@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/datasources/android_bridge.dart';
+import '../../data/models/settings_model.dart';
+import '../providers/apps_provider.dart';
+import '../providers/permissions_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/stats_provider.dart';
 import '../widgets/glass_card.dart';
@@ -14,7 +18,9 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
-    final notifier = ref.read(settingsProvider.notifier);
+    final settingsNotifier = ref.read(settingsProvider.notifier);
+    final perms = ref.watch(permissionsProvider);
+    final permsNotifier = ref.read(permissionsProvider.notifier);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -34,7 +40,8 @@ class SettingsScreen extends ConsumerWidget {
                   max: 30,
                   divisions: 5,
                   unit: 's',
-                  onChanged: (v) => notifier.setCountdownSeconds(v.round()),
+                  onChanged: (v) =>
+                      settingsNotifier.setCountdownSeconds(v.round()),
                 ),
                 const Divider(height: 24),
                 _SliderTile(
@@ -44,18 +51,47 @@ class SettingsScreen extends ConsumerWidget {
                   max: 3,
                   divisions: 2,
                   labels: const ['Mild', 'Strong', 'Brutal'],
-                  onChanged: (v) => notifier.setRegretIntensity(v.round()),
+                  onChanged: (v) =>
+                      settingsNotifier.setRegretIntensity(v.round()),
                 ),
                 const Divider(height: 24),
                 _SwitchTile(
                   label: 'Brutal Quotes Only',
                   subtitle: 'Show only the harshest messages',
                   value: settings.brutalQuotesOnly,
-                  onChanged: notifier.setBrutalQuotesOnly,
+                  onChanged: settingsNotifier.setBrutalQuotesOnly,
                 ),
               ],
             ),
           ).animate().fadeIn(duration: 400.ms),
+          const SizedBox(height: 20),
+          _SectionTitle('LAUNCHER'),
+          const SizedBox(height: 12),
+          GlassCard(
+            child: Column(
+              children: [
+                _ActionTile(
+                  icon: Icons.push_pin_outlined,
+                  label: 'Edit Dock (${settings.pinnedDockApps.length}/3)',
+                  color: AppColors.primary,
+                  onTap: () => context.push('/dock-picker'),
+                ),
+                const Divider(height: 24),
+                _WallpaperTile(
+                  selected: settings.wallpaperMode,
+                  onSelect: (m) =>
+                      settingsNotifier.setWallpaperMode(m),
+                ),
+                const Divider(height: 24),
+                _SwitchTile(
+                  label: 'Show Streak on Home',
+                  subtitle: 'Display the monk streak pill under the clock',
+                  value: settings.showStreakOnHome,
+                  onChanged: settingsNotifier.setShowStreakOnHome,
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 50.ms, duration: 400.ms),
           const SizedBox(height: 20),
           _SectionTitle('PERMISSIONS'),
           const SizedBox(height: 12),
@@ -63,10 +99,22 @@ class SettingsScreen extends ConsumerWidget {
             child: Column(
               children: [
                 _PermissionTile(
+                  icon: Icons.home_rounded,
+                  label: 'Default Launcher',
+                  subtitle: 'Required to replace your home screen',
+                  granted: perms.defaultLauncher,
+                  onGrant: () async {
+                    await AndroidBridge.requestDefaultLauncher();
+                    await Future.delayed(const Duration(milliseconds: 600));
+                    permsNotifier.refresh();
+                  },
+                ),
+                const Divider(height: 24),
+                _PermissionTile(
                   icon: Icons.accessibility_new_rounded,
                   label: 'Accessibility Service',
-                  subtitle: 'Required to intercept locked app opens',
-                  granted: settings.accessibilityGranted,
+                  subtitle: 'Intercepts locked app opens outside vault',
+                  granted: perms.accessibility,
                   onGrant: () async {
                     await AndroidBridge.openAccessibilitySettings();
                   },
@@ -76,9 +124,21 @@ class SettingsScreen extends ConsumerWidget {
                   icon: Icons.bar_chart_rounded,
                   label: 'Usage Stats',
                   subtitle: 'Powers the Regret Mirror with real data',
-                  granted: settings.usageStatsGranted,
+                  granted: perms.usageStats,
                   onGrant: () async {
                     await AndroidBridge.openUsageStatsSettings();
+                  },
+                ),
+                const Divider(height: 24),
+                _PermissionTile(
+                  icon: Icons.battery_charging_full_rounded,
+                  label: 'Ignore Battery Optimization',
+                  subtitle: 'Keeps the lock engine alive in background',
+                  granted: perms.batteryOptimizationIgnored,
+                  onGrant: () async {
+                    await AndroidBridge.openBatteryOptimizationSettings();
+                    await Future.delayed(const Duration(milliseconds: 600));
+                    permsNotifier.refresh();
                   },
                 ),
               ],
@@ -109,7 +169,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 OutlinedButton(
-                  onPressed: () => _confirmReset(context, ref),
+                  onPressed: () => _confirmResetPasses(context, ref),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.warning),
                     foregroundColor: AppColors.warning,
@@ -125,6 +185,13 @@ class SettingsScreen extends ConsumerWidget {
           GlassCard(
             child: Column(
               children: [
+                _ActionTile(
+                  icon: Icons.restart_alt_rounded,
+                  label: 'Reset Streaks',
+                  color: AppColors.warning,
+                  onTap: () => _confirmResetStreaks(context, ref),
+                ),
+                const Divider(height: 24),
                 _ActionTile(
                   icon: Icons.refresh_rounded,
                   label: 'Reset All Statistics',
@@ -167,68 +234,99 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _confirmReset(BuildContext context, WidgetRef ref) {
-    showDialog(
+  void _confirmResetPasses(BuildContext context, WidgetRef ref) {
+    _confirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Reset Passes?',
-          style: GoogleFonts.spaceGrotesk(
-              fontWeight: FontWeight.w700, color: AppColors.primary),
-        ),
-        content: Text(
-          'This restores all 3 emergency passes.',
-          style: GoogleFonts.spaceGrotesk(color: AppColors.secondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.spaceGrotesk(color: AppColors.muted)),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(statsProvider.notifier).resetEmergencyPasses();
-              Navigator.pop(ctx);
-            },
-            child: Text('Reset',
-                style: GoogleFonts.spaceGrotesk(color: AppColors.warning)),
-          ),
-        ],
-      ),
+      title: 'Reset Passes?',
+      message: 'This restores all 3 emergency passes.',
+      confirmLabel: 'Reset',
+      confirmColor: AppColors.warning,
+      onConfirm: () =>
+          ref.read(statsProvider.notifier).resetEmergencyPasses(),
+    );
+  }
+
+  void _confirmResetStreaks(BuildContext context, WidgetRef ref) {
+    _confirmDialog(
+      context: context,
+      title: 'Reset Streaks?',
+      message:
+          'This wipes your current and best streak. Daily history stays.',
+      confirmLabel: 'Reset Streaks',
+      confirmColor: AppColors.warning,
+      onConfirm: () => ref.read(statsProvider.notifier).resetStreaks(),
     );
   }
 
   void _confirmResetStats(BuildContext context, WidgetRef ref) {
+    _confirmDialog(
+      context: context,
+      title: 'Reset All Stats?',
+      message:
+          'This erases your streaks, history, and per-app counters. Cannot be undone.',
+      confirmLabel: 'Reset Everything',
+      confirmColor: AppColors.danger,
+      onConfirm: () async {
+        await ref.read(statsProvider.notifier).resetAllStats();
+        await ref.read(lockedAppsProvider.notifier).reset();
+      },
+    );
+  }
+
+  void _confirmDialog({
+    required BuildContext context,
+    required String title,
+    required String message,
+    required String confirmLabel,
+    required Color confirmColor,
+    required Future<void> Function() onConfirm,
+  }) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          'Reset All Stats?',
+          title,
           style: GoogleFonts.spaceGrotesk(
-              fontWeight: FontWeight.w700, color: AppColors.primary),
+            fontWeight: FontWeight.w700,
+            color: AppColors.primary,
+          ),
         ),
         content: Text(
-          'This will erase your streak, history, and all stats. This cannot be undone.',
+          message,
           style: GoogleFonts.spaceGrotesk(color: AppColors.secondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.spaceGrotesk(color: AppColors.muted)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.spaceGrotesk(color: AppColors.muted),
+            ),
           ),
           TextButton(
-            onPressed: () {
-              // Reset is handled by clearing prefs and re-seeding
+            onPressed: () async {
               Navigator.pop(ctx);
+              await onConfirm();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Done.',
+                      style: GoogleFonts.spaceGrotesk(),
+                    ),
+                    backgroundColor: AppColors.surface,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
-            child: Text('Reset',
-                style: GoogleFonts.spaceGrotesk(color: AppColors.danger)),
+            child: Text(
+              confirmLabel,
+              style: GoogleFonts.spaceGrotesk(color: confirmColor),
+            ),
           ),
         ],
       ),
@@ -422,7 +520,8 @@ class _PermissionTile extends StatelessWidget {
           ),
         ),
         if (granted)
-          Icon(Icons.check_circle_rounded, color: AppColors.success, size: 22)
+          Icon(Icons.check_circle_rounded,
+              color: AppColors.success, size: 22)
         else
           TextButton(
             onPressed: onGrant,
@@ -435,6 +534,75 @@ class _PermissionTile extends StatelessWidget {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _WallpaperTile extends StatelessWidget {
+  final WallpaperMode selected;
+  final ValueChanged<WallpaperMode> onSelect;
+
+  const _WallpaperTile({required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Wallpaper Mode',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'How the home screen background is drawn.',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 12,
+            color: AppColors.muted,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: WallpaperMode.values.map((m) {
+            final isSel = m == selected;
+            return GestureDetector(
+              onTap: () => onSelect(m),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSel
+                      ? AppColors.monk.withAlpha(50)
+                      : AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isSel
+                        ? AppColors.monkGold
+                        : AppColors.border,
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  m.label,
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isSel
+                        ? AppColors.monkGold
+                        : AppColors.secondary,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
       ],
     );
   }
@@ -470,7 +638,8 @@ class _ActionTile extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          Icon(Icons.chevron_right_rounded, color: AppColors.muted, size: 20),
+          Icon(Icons.chevron_right_rounded,
+              color: AppColors.muted, size: 20),
         ],
       ),
     );
