@@ -1,0 +1,626 @@
+import 'dart:async';
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import '../../core/theme/app_theme.dart';
+import '../../data/datasources/android_bridge.dart';
+import '../../data/models/app_info.dart';
+import '../../data/models/settings_model.dart';
+import '../providers/apps_provider.dart';
+import '../providers/settings_provider.dart';
+import '../providers/stats_provider.dart';
+
+/// Premium minimal launcher home. This is the screen the user lands on every
+/// time they press the Home button while Monk Mode is the default launcher.
+class LauncherHomeScreen extends ConsumerStatefulWidget {
+  const LauncherHomeScreen({super.key});
+
+  @override
+  ConsumerState<LauncherHomeScreen> createState() =>
+      _LauncherHomeScreenState();
+}
+
+class _LauncherHomeScreenState extends ConsumerState<LauncherHomeScreen> {
+  Timer? _clockTick;
+  late DateTime _now;
+
+  @override
+  void initState() {
+    super.initState();
+    _now = DateTime.now();
+    // Tick at the top of the next minute, then every 60s.
+    final msToNextMinute = (60 - _now.second) * 1000 - _now.millisecond;
+    _clockTick = Timer(Duration(milliseconds: msToNextMinute), () {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
+      _clockTick = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (!mounted) return;
+        setState(() => _now = DateTime.now());
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = ref.watch(settingsProvider);
+    // Watch the stats state so rebuilds fire on streak changes; the notifier
+    // computes the live-today-adjusted display streak.
+    ref.watch(statsProvider);
+    final displayStreak = ref.read(statsProvider.notifier).displayStreak;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: _Wallpaper(
+        mode: settings.wallpaperMode,
+        child: SafeArea(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragEnd: (details) {
+              if ((details.primaryVelocity ?? 0) < -200) {
+                context.push('/app-drawer');
+              }
+            },
+            onLongPress: () => _showQuickActions(context),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(28, 20, 28, 16),
+              child: Column(
+                children: [
+                  const _TopActions(),
+                  const Spacer(flex: 2),
+                  _ClockBlock(
+                    now: _now,
+                    showStreak: settings.showStreakOnHome,
+                    streak: displayStreak,
+                  ),
+                  const Spacer(flex: 3),
+                  _Dock(pinned: settings.pinnedDockApps),
+                  const SizedBox(height: 10),
+                  const _SwipeHint(),
+                  const SizedBox(height: 4),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showQuickActions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _QuickTile(
+                icon: Icons.bar_chart_rounded,
+                label: 'Dashboard',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/dashboard');
+                },
+              ),
+              _QuickTile(
+                icon: Icons.grid_view_rounded,
+                label: 'All Apps',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/app-drawer');
+                },
+              ),
+              _QuickTile(
+                icon: Icons.lock_outline,
+                label: 'Vault (Locked Apps)',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/vault');
+                },
+              ),
+              _QuickTile(
+                icon: Icons.pin_drop_outlined,
+                label: 'Edit Dock',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/dock-picker');
+                },
+              ),
+              _QuickTile(
+                icon: Icons.settings_outlined,
+                label: 'Settings',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/settings');
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Top status row ─────────────────────────────────────────────────────────
+class _TopActions extends ConsumerWidget {
+  const _TopActions();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _IconBtn(
+          icon: Icons.bar_chart_rounded,
+          tooltip: 'Dashboard',
+          onTap: () => context.push('/dashboard'),
+        ),
+        Text(
+          'MONK MODE',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 11,
+            color: AppColors.muted,
+            letterSpacing: 3,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        _IconBtn(
+          icon: Icons.settings_outlined,
+          tooltip: 'Settings',
+          onTap: () => context.push('/settings'),
+        ),
+      ],
+    );
+  }
+}
+
+class _IconBtn extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _IconBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: 22, color: AppColors.secondary),
+      tooltip: tooltip,
+      onPressed: onTap,
+      style: IconButton.styleFrom(
+        padding: const EdgeInsets.all(8),
+        minimumSize: const Size(40, 40),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+}
+
+// ─── Clock / date / streak ──────────────────────────────────────────────────
+class _ClockBlock extends StatelessWidget {
+  final DateTime now;
+  final bool showStreak;
+  final int streak;
+
+  const _ClockBlock({
+    required this.now,
+    required this.showStreak,
+    required this.streak,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final h = now.hour.toString().padLeft(2, '0');
+    final m = now.minute.toString().padLeft(2, '0');
+    final dateStr = _formatDate(now);
+
+    return Column(
+      children: [
+        Text(
+          '$h:$m',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 96,
+            fontWeight: FontWeight.w200,
+            color: AppColors.primary,
+            height: 1,
+            letterSpacing: -2,
+          ),
+        ).animate().fadeIn(duration: 400.ms),
+        const SizedBox(height: 12),
+        Text(
+          dateStr,
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 14,
+            color: AppColors.muted,
+            letterSpacing: 2,
+            fontWeight: FontWeight.w500,
+          ),
+        ).animate().fadeIn(delay: 100.ms, duration: 400.ms),
+        if (showStreak) ...[
+          const SizedBox(height: 26),
+          _StreakPill(streak: streak)
+              .animate()
+              .fadeIn(delay: 200.ms, duration: 400.ms)
+              .slideY(begin: 0.2, end: 0),
+        ],
+      ],
+    );
+  }
+
+  String _formatDate(DateTime d) {
+    const weekdays = [
+      'MON',
+      'TUE',
+      'WED',
+      'THU',
+      'FRI',
+      'SAT',
+      'SUN',
+    ];
+    const months = [
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
+    return '${weekdays[d.weekday - 1]}  ${d.day}  ${months[d.month - 1]}';
+  }
+}
+
+class _StreakPill extends StatelessWidget {
+  final int streak;
+
+  const _StreakPill({required this.streak});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = streak > 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: active
+            ? AppColors.monk.withAlpha(40)
+            : AppColors.surface.withAlpha(140),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(
+          color: active
+              ? AppColors.monkGold.withAlpha(120)
+              : AppColors.border,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(active ? '🔥' : '☯',
+              style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Text(
+            active
+                ? '$streak day${streak == 1 ? '' : 's'} clean'
+                : 'Begin your streak',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: active ? AppColors.monkGold : AppColors.secondary,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Dock ───────────────────────────────────────────────────────────────────
+class _Dock extends ConsumerWidget {
+  final List<String> pinned;
+
+  const _Dock({required this.pinned});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appsAsync = ref.watch(installedAppsProvider);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withAlpha(140),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border, width: 1),
+      ),
+      child: appsAsync.when(
+        loading: () => const SizedBox(
+          height: 56,
+          child: Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                color: AppColors.muted,
+                strokeWidth: 2,
+              ),
+            ),
+          ),
+        ),
+        error: (_, __) => _emptyDock(context),
+        data: (apps) {
+          final byPkg = {for (final a in apps) a.packageName: a};
+          final slots = List<AppInfo?>.generate(3, (i) {
+            if (i >= pinned.length) return null;
+            return byPkg[pinned[i]];
+          });
+          final allEmpty = slots.every((s) => s == null);
+          if (allEmpty) return _emptyDock(context);
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: slots.map((app) {
+              if (app == null) {
+                return _DockSlot(
+                  onTap: () => context.push('/dock-picker'),
+                  child: const Icon(Icons.add,
+                      color: AppColors.muted, size: 22),
+                );
+              }
+              return _DockSlot(
+                onTap: () => _launch(context, ref, app),
+                child: _DockGlyph(app: app),
+              );
+            }).toList(),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _emptyDock(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push('/dock-picker'),
+      child: SizedBox(
+        height: 56,
+        child: Center(
+          child: Text(
+            'Tap to pin 3 apps to your dock',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 12,
+              color: AppColors.muted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launch(
+      BuildContext context, WidgetRef ref, AppInfo app) async {
+    if (app.isLocked) {
+      context.push(
+        '/access-flow/why',
+        extra: {
+          'packageName': app.packageName,
+          'appName': app.appName,
+        },
+      );
+      return;
+    }
+    final ok = await AndroidBridge.launchApp(app.packageName);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not launch ${app.appName}',
+            style: GoogleFonts.spaceGrotesk(),
+          ),
+          backgroundColor: AppColors.surface,
+        ),
+      );
+    }
+  }
+}
+
+class _DockSlot extends StatelessWidget {
+  final VoidCallback onTap;
+  final Widget child;
+
+  const _DockSlot({required this.onTap, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 64,
+        height: 64,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _DockGlyph extends StatelessWidget {
+  final AppInfo app;
+
+  const _DockGlyph({required this.app});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      app.appName.isNotEmpty ? app.appName[0].toUpperCase() : '?',
+      style: GoogleFonts.spaceGrotesk(
+        fontSize: 24,
+        fontWeight: FontWeight.w700,
+        color: AppColors.primary,
+      ),
+    );
+  }
+}
+
+class _SwipeHint extends StatelessWidget {
+  const _SwipeHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push('/app-drawer'),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppColors.muted.withAlpha(120),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Swipe up for all apps',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 11,
+                color: AppColors.muted,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.primary),
+      title: Text(
+        label,
+        style: GoogleFonts.spaceGrotesk(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+// ─── Wallpaper background ───────────────────────────────────────────────────
+class _Wallpaper extends StatelessWidget {
+  final WallpaperMode mode;
+  final Widget child;
+
+  const _Wallpaper({required this.mode, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (mode) {
+      case WallpaperMode.black:
+        return Container(color: AppColors.background, child: child);
+      case WallpaperMode.full:
+      case WallpaperMode.dim:
+      case WallpaperMode.blur:
+        // System wallpaper access would require a platform-side fetch; for now
+        // we fall back to a stylized gradient tuned to each mode so the UX is
+        // visually distinct without blocking on native wallpaper retrieval.
+        final gradient = _gradientFor(mode);
+        Widget background = Container(
+          decoration: BoxDecoration(gradient: gradient),
+        );
+        if (mode == WallpaperMode.blur) {
+          background = BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: background,
+          );
+        }
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            background,
+            if (mode == WallpaperMode.dim)
+              Container(color: Colors.black.withAlpha(120)),
+            child,
+          ],
+        );
+    }
+  }
+
+  LinearGradient _gradientFor(WallpaperMode mode) {
+    switch (mode) {
+      case WallpaperMode.full:
+        return const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF0D1117), Color(0xFF050505)],
+        );
+      case WallpaperMode.dim:
+        return const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF14161A), Color(0xFF000000)],
+        );
+      case WallpaperMode.blur:
+        return const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1A1A22), Color(0xFF080810)],
+        );
+      case WallpaperMode.black:
+        return const LinearGradient(
+          colors: [Color(0xFF000000), Color(0xFF000000)],
+        );
+    }
+  }
+}

@@ -22,11 +22,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _navigate() async {
-    await Future.delayed(const Duration(milliseconds: 2200));
+    await Future.delayed(const Duration(milliseconds: 1400));
     if (!mounted) return;
     final storage = ref.read(storageProvider);
     if (storage.isOnboardingDone()) {
-      context.go('/dashboard');
+      context.go('/home');
     } else {
       context.go('/onboarding');
     }
