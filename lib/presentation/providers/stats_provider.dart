@@ -8,61 +8,116 @@ class StatsNotifier extends StateNotifier<UserStats> {
   final LocalStorage _storage;
 
   StatsNotifier(this._storage) : super(_storage.getUserStats()) {
-    _ensureMockData();
+    _rolloverIfNeeded();
   }
 
-  void _ensureMockData() {
-    if (state.totalTemptationsResisted == 0 &&
-        state.totalActualOpens == 0) {
-      _seedMockHistory();
-    }
-  }
+  // ─── Day rollover (runs on init + can be triggered on app resume) ───────
+  Future<void> rolloverIfNeeded() async => _rolloverIfNeeded();
 
-  void _seedMockHistory() {
-    final now = DateTime.now();
-    final records = <String, DailyRecord>{};
-    for (int i = 6; i >= 1; i--) {
-      final day = now.subtract(Duration(days: i));
-      final key =
-          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-      final resisted = 5 + (i * 2) % 7;
-      final opened = 1 + i % 3;
-      records[key] = DailyRecord(
-        dateKey: key,
-        temptationsResisted: resisted,
-        appsOpened: opened,
-      );
+  Future<void> _rolloverIfNeeded() async {
+    final todayKey = UserStats.todayKey();
+    if (state.lastEvaluatedDateKey == todayKey) return;
+
+    // First-ever evaluation: nothing to roll forward, just anchor today.
+    if (state.lastEvaluatedDateKey.isEmpty) {
+      final updated = state.copyWith(lastEvaluatedDateKey: todayKey);
+      state = updated;
+      await _storage.saveUserStats(updated);
+      return;
     }
-    final yesterday = now.subtract(const Duration(days: 1));
+
+    // Walk every day from (lastEvaluated + 1) through yesterday inclusive.
+    final lastDate = _parseDateKey(state.lastEvaluatedDateKey);
+    if (lastDate == null) {
+      final updated = state.copyWith(lastEvaluatedDateKey: todayKey);
+      state = updated;
+      await _storage.saveUserStats(updated);
+      return;
+    }
+
+    var cursor = DateTime(lastDate.year, lastDate.month, lastDate.day)
+        .add(const Duration(days: 1));
+    final todayStart = DateTime(DateTime.now().year, DateTime.now().month,
+        DateTime.now().day);
+
+    int currentStreak = state.currentStreak;
+    int bestStreak = state.bestStreak;
+    DateTime? lastStreakDate = state.lastStreakDate;
+
+    while (cursor.isBefore(todayStart)) {
+      final key = UserStats.dateKeyFor(cursor);
+      final record = state.dailyRecords[key] ?? DailyRecord(dateKey: key);
+      if (record.isMonkDay) {
+        currentStreak += 1;
+        lastStreakDate = cursor;
+        if (currentStreak > bestStreak) bestStreak = currentStreak;
+      } else {
+        currentStreak = 0;
+      }
+      cursor = cursor.add(const Duration(days: 1));
+    }
+
     final updated = state.copyWith(
-      currentStreak: 3,
-      bestStreak: 8,
-      totalTemptationsResisted: 34,
-      totalActualOpens: 12,
-      lastStreakDate: yesterday,
-      dailyRecords: records,
+      currentStreak: currentStreak,
+      bestStreak: bestStreak,
+      lastStreakDate: lastStreakDate,
+      lastEvaluatedDateKey: todayKey,
     );
     state = updated;
-    _storage.saveUserStats(updated);
+    await _storage.saveUserStats(updated);
   }
 
-  Future<void> recordResisted() async {
+  DateTime? _parseDateKey(String k) {
+    try {
+      final parts = k.split('-');
+      if (parts.length != 3) return null;
+      return DateTime(
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+        int.parse(parts[2]),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The "live" streak shown to the user — finalized streak +1 if today is
+  /// already a monk day (at least one resist so far and non-bad ratio).
+  int get displayStreak {
+    final today = state.todayRecord;
+    final todayCounts = today.temptationsResisted > 0 && today.isMonkDay;
+    return state.currentStreak + (todayCounts ? 1 : 0);
+  }
+
+  // ─── Event recording ─────────────────────────────────────────────────────
+  Future<void> recordResisted({String? packageName, String? appName}) async {
+    await _rolloverIfNeeded();
     final today = state.todayRecord;
     final updatedRecord = today.copyWith(
       temptationsResisted: today.temptationsResisted + 1,
     );
-    final updated = _updateStreak(state.copyWith(
+    final updated = state.copyWith(
       totalTemptationsResisted: state.totalTemptationsResisted + 1,
       dailyRecords: {
         ...state.dailyRecords,
         today.dateKey: updatedRecord,
       },
-    ));
+    );
     state = updated;
     await _storage.saveUserStats(updated);
+    if (packageName != null && appName != null) {
+      await _storage.addUsageRecord(UsageRecord(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        packageName: packageName,
+        appName: appName,
+        timestamp: DateTime.now(),
+        outcome: AccessOutcome.resisted,
+      ));
+    }
   }
 
-  Future<void> recordOpened() async {
+  Future<void> recordOpened({String? packageName, String? appName}) async {
+    await _rolloverIfNeeded();
     final today = state.todayRecord;
     final updatedRecord = today.copyWith(
       appsOpened: today.appsOpened + 1,
@@ -76,12 +131,24 @@ class StatsNotifier extends StateNotifier<UserStats> {
     );
     state = updated;
     await _storage.saveUserStats(updated);
+    if (packageName != null && appName != null) {
+      await _storage.addUsageRecord(UsageRecord(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        packageName: packageName,
+        appName: appName,
+        timestamp: DateTime.now(),
+        outcome: AccessOutcome.opened,
+      ));
+    }
   }
 
-  Future<void> recordEmergencyPass() async {
+  Future<void> recordEmergencyPass(
+      {String? packageName, String? appName}) async {
+    await _rolloverIfNeeded();
     final today = state.todayRecord;
     final updatedRecord = today.copyWith(
       emergencyPassesUsed: today.emergencyPassesUsed + 1,
+      appsOpened: today.appsOpened + 1,
     );
     final updated = state.copyWith(
       emergencyPassesUsed: state.emergencyPassesUsed + 1,
@@ -93,6 +160,15 @@ class StatsNotifier extends StateNotifier<UserStats> {
     );
     state = updated;
     await _storage.saveUserStats(updated);
+    if (packageName != null && appName != null) {
+      await _storage.addUsageRecord(UsageRecord(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        packageName: packageName,
+        appName: appName,
+        timestamp: DateTime.now(),
+        outcome: AccessOutcome.emergencyPass,
+      ));
+    }
   }
 
   Future<void> resetEmergencyPasses() async {
@@ -101,67 +177,14 @@ class StatsNotifier extends StateNotifier<UserStats> {
     await _storage.saveUserStats(updated);
   }
 
-  UserStats _updateStreak(UserStats stats) {
-    final today = DateTime.now();
-    final todayKey =
-        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    final lastDate = stats.lastStreakDate;
-
-    if (lastDate == null) {
-      final newStreak = 1;
-      return stats.copyWith(
-        currentStreak: newStreak,
-        bestStreak: newStreak > stats.bestStreak ? newStreak : stats.bestStreak,
-        lastStreakDate: today,
-      );
-    }
-
-    final lastKey =
-        '${lastDate.year}-${lastDate.month.toString().padLeft(2, '0')}-${lastDate.day.toString().padLeft(2, '0')}';
-
-    if (lastKey == todayKey) return stats;
-
-    final yesterday = today.subtract(const Duration(days: 1));
-    final yesterdayKey =
-        '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
-
-    final newStreak = lastKey == yesterdayKey
-        ? stats.currentStreak + 1
-        : 1;
-
-    return stats.copyWith(
-      currentStreak: newStreak,
-      bestStreak:
-          newStreak > stats.bestStreak ? newStreak : stats.bestStreak,
-      lastStreakDate: today,
-    );
+  Future<void> resetAllStats() async {
+    await _storage.resetAllStats();
+    state = _storage.getUserStats();
   }
 
-  List<UsageRecord> getRecentRecords(String packageName, {int days = 7}) {
-    final records = _storage.getUsageRecords();
-    final cutoff = DateTime.now().subtract(Duration(days: days));
-    return records
-        .where((r) =>
-            r.packageName == packageName && r.timestamp.isAfter(cutoff))
-        .toList()
-      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-  }
-
-  int getLastSessionMinutes(String packageName) {
-    final records = getRecentRecords(packageName);
-    final opened = records.where((r) => r.outcome == AccessOutcome.opened);
-    if (opened.isEmpty) return 23 + (packageName.length % 40);
-    return opened.first.sessionMinutes ?? 23;
-  }
-
-  int getWeeklyOpenCount(String packageName) {
-    final records = getRecentRecords(packageName);
-    return records.where((r) => r.outcome == AccessOutcome.opened).length;
-  }
-
-  int getWeeklyHours(String packageName) {
-    final opens = getWeeklyOpenCount(packageName);
-    return ((opens * 35) / 60).ceil();
+  Future<void> resetStreaks() async {
+    await _storage.resetStreaks();
+    state = _storage.getUserStats();
   }
 }
 

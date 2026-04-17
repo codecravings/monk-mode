@@ -15,29 +15,31 @@ class LocalStorage {
     return LocalStorage(prefs);
   }
 
-  // Apps
+  // ─── Apps ────────────────────────────────────────────────────────────────
   List<AppInfo> getLockedApps() {
     final json = _prefs.getString(AppConstants.prefLockedApps);
-    if (json == null || json.isEmpty) return [];
+    if (json == null || json.isEmpty) return const [];
     return AppInfo.listFromJson(json);
   }
 
   Future<void> saveLockedApps(List<AppInfo> apps) async {
-    await _prefs.setString(AppConstants.prefLockedApps, AppInfo.listToJson(apps));
+    await _prefs.setString(
+        AppConstants.prefLockedApps, AppInfo.listToJson(apps));
   }
 
-  // Stats
+  // ─── Stats ───────────────────────────────────────────────────────────────
   UserStats getUserStats() {
     final json = _prefs.getString(AppConstants.prefUserStats);
-    if (json == null || json.isEmpty) return UserStats();
+    if (json == null || json.isEmpty) return const UserStats();
     return UserStats.fromJsonString(json);
   }
 
   Future<void> saveUserStats(UserStats stats) async {
-    await _prefs.setString(AppConstants.prefUserStats, stats.toJsonString());
+    await _prefs.setString(
+        AppConstants.prefUserStats, stats.toJsonString());
   }
 
-  // Settings
+  // ─── Settings ────────────────────────────────────────────────────────────
   SettingsModel getSettings() {
     final json = _prefs.getString(AppConstants.prefSettings);
     if (json == null || json.isEmpty) return const SettingsModel();
@@ -45,18 +47,18 @@ class LocalStorage {
   }
 
   Future<void> saveSettings(SettingsModel settings) async {
-    await _prefs.setString(AppConstants.prefSettings, settings.toJsonString());
+    await _prefs.setString(
+        AppConstants.prefSettings, settings.toJsonString());
   }
 
-  // Usage records
+  // ─── Usage Records ───────────────────────────────────────────────────────
   List<UsageRecord> getUsageRecords() {
     final json = _prefs.getString(AppConstants.prefUsageRecords);
-    if (json == null || json.isEmpty) return [];
+    if (json == null || json.isEmpty) return const [];
     return UsageRecord.listFromJson(json);
   }
 
   Future<void> saveUsageRecords(List<UsageRecord> records) async {
-    // Keep last 500 records
     final trimmed = records.length > 500
         ? records.sublist(records.length - 500)
         : records;
@@ -65,14 +67,47 @@ class LocalStorage {
   }
 
   Future<void> addUsageRecord(UsageRecord record) async {
-    final records = getUsageRecords();
-    records.add(record);
+    final records = List<UsageRecord>.from(getUsageRecords())..add(record);
     await saveUsageRecords(records);
   }
 
-  bool isOnboardingDone() => _prefs.getBool(AppConstants.prefOnboardingDone) ?? false;
+  // ─── Onboarding ──────────────────────────────────────────────────────────
+  bool isOnboardingDone() =>
+      _prefs.getBool(AppConstants.prefOnboardingDone) ?? false;
 
   Future<void> setOnboardingDone() async {
     await _prefs.setBool(AppConstants.prefOnboardingDone, true);
+  }
+
+  // ─── Reset operations ────────────────────────────────────────────────────
+  Future<void> resetAllStats() async {
+    await _prefs.remove(AppConstants.prefUserStats);
+    await _prefs.remove(AppConstants.prefUsageRecords);
+    // Zero out per-app counters on locked apps but keep the lock list
+    final apps = getLockedApps();
+    final cleared = apps
+        .map((a) => a.copyWith(
+              totalAttempts: 0,
+              totalOpens: 0,
+              totalResisted: 0,
+              emergencyPassesUsed: 0,
+            ))
+        .toList();
+    await saveLockedApps(cleared);
+  }
+
+  Future<void> resetStreaks() async {
+    final stats = getUserStats();
+    final cleared = stats.copyWith(
+      currentStreak: 0,
+      bestStreak: 0,
+      lastStreakDate: null,
+      lastEvaluatedDateKey: '',
+    );
+    await saveUserStats(cleared);
+  }
+
+  Future<void> clearAllData() async {
+    await _prefs.clear();
   }
 }

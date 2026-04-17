@@ -48,6 +48,14 @@ class DailyRecord {
     return DailyScore.lost;
   }
 
+  /// A "monk day" for streak purposes.
+  /// Rules: at least one interaction (resist or open), and resists >= non-EP opens.
+  /// A day with zero interactions counts as monk (nothing happened = neutral pass).
+  bool get isMonkDay {
+    if (temptationsResisted == 0 && appsOpened == 0) return true;
+    return temptationsResisted >= appsOpened;
+  }
+
   DailyRecord copyWith({
     int? temptationsResisted,
     int? appsOpened,
@@ -55,9 +63,11 @@ class DailyRecord {
   }) =>
       DailyRecord(
         dateKey: dateKey,
-        temptationsResisted: temptationsResisted ?? this.temptationsResisted,
+        temptationsResisted:
+            temptationsResisted ?? this.temptationsResisted,
         appsOpened: appsOpened ?? this.appsOpened,
-        emergencyPassesUsed: emergencyPassesUsed ?? this.emergencyPassesUsed,
+        emergencyPassesUsed:
+            emergencyPassesUsed ?? this.emergencyPassesUsed,
       );
 
   Map<String, dynamic> toJson() => {
@@ -79,6 +89,7 @@ class UserStats {
   final int currentStreak;
   final int bestStreak;
   final DateTime? lastStreakDate;
+  final String lastEvaluatedDateKey; // last day we ran streak rollover
   final int emergencyPassesUsed;
   final int totalTemptationsResisted;
   final int totalActualOpens;
@@ -88,6 +99,7 @@ class UserStats {
     this.currentStreak = 0,
     this.bestStreak = 0,
     this.lastStreakDate,
+    this.lastEvaluatedDateKey = '',
     this.emergencyPassesUsed = 0,
     this.totalTemptationsResisted = 0,
     this.totalActualOpens = 0,
@@ -97,10 +109,10 @@ class UserStats {
   int get emergencyPassesRemaining =>
       (3 - emergencyPassesUsed).clamp(0, 3);
 
-  static String todayKey() {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-  }
+  static String dateKeyFor(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  static String todayKey() => dateKeyFor(DateTime.now());
 
   DailyRecord get todayRecord =>
       dailyRecords[todayKey()] ?? DailyRecord(dateKey: todayKey());
@@ -108,17 +120,17 @@ class UserStats {
   int get todayTemptationsResisted => todayRecord.temptationsResisted;
   int get todayAppsOpened => todayRecord.appsOpened;
 
-  int get weeklyMinutesWasted {
+  /// Real minutes wasted this week, computed from opens × average session.
+  /// Callers pass the average session derived from UsageStats; if none, falls
+  /// back to 0 rather than a fake constant.
+  int weeklyMinutesWastedWithAvg(int avgSessionMinutes) {
     final now = DateTime.now();
     int total = 0;
     for (int i = 0; i < 7; i++) {
       final day = now.subtract(Duration(days: i));
-      final key =
-          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-      final record = dailyRecords[key];
-      if (record != null) {
-        total += record.appsOpened * 35;
-      }
+      final key = dateKeyFor(day);
+      final r = dailyRecords[key];
+      if (r != null) total += r.appsOpened * avgSessionMinutes;
     }
     return total;
   }
@@ -127,10 +139,12 @@ class UserStats {
         'currentStreak': currentStreak,
         'bestStreak': bestStreak,
         'lastStreakDate': lastStreakDate?.toIso8601String(),
+        'lastEvaluatedDateKey': lastEvaluatedDateKey,
         'emergencyPassesUsed': emergencyPassesUsed,
         'totalTemptationsResisted': totalTemptationsResisted,
         'totalActualOpens': totalActualOpens,
-        'dailyRecords': dailyRecords.map((k, v) => MapEntry(k, v.toJson())),
+        'dailyRecords':
+            dailyRecords.map((k, v) => MapEntry(k, v.toJson())),
       };
 
   factory UserStats.fromJson(Map<String, dynamic> json) {
@@ -147,6 +161,8 @@ class UserStats {
       lastStreakDate: json['lastStreakDate'] != null
           ? DateTime.parse(json['lastStreakDate'] as String)
           : null,
+      lastEvaluatedDateKey:
+          json['lastEvaluatedDateKey'] as String? ?? '',
       emergencyPassesUsed: json['emergencyPassesUsed'] as int? ?? 0,
       totalTemptationsResisted:
           json['totalTemptationsResisted'] as int? ?? 0,
@@ -163,8 +179,8 @@ class UserStats {
   UserStats copyWith({
     int? currentStreak,
     int? bestStreak,
-    // Use Object? so callers can explicitly pass null to clear the date
     Object? lastStreakDate = _keep,
+    String? lastEvaluatedDateKey,
     int? emergencyPassesUsed,
     int? totalTemptationsResisted,
     int? totalActualOpens,
@@ -176,7 +192,10 @@ class UserStats {
         lastStreakDate: lastStreakDate == _keep
             ? this.lastStreakDate
             : lastStreakDate as DateTime?,
-        emergencyPassesUsed: emergencyPassesUsed ?? this.emergencyPassesUsed,
+        lastEvaluatedDateKey:
+            lastEvaluatedDateKey ?? this.lastEvaluatedDateKey,
+        emergencyPassesUsed:
+            emergencyPassesUsed ?? this.emergencyPassesUsed,
         totalTemptationsResisted:
             totalTemptationsResisted ?? this.totalTemptationsResisted,
         totalActualOpens: totalActualOpens ?? this.totalActualOpens,
@@ -184,5 +203,4 @@ class UserStats {
       );
 }
 
-// Sentinel value used by copyWith to distinguish "not provided" from null
 const _keep = Object();
