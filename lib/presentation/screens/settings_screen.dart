@@ -103,6 +103,13 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const Divider(height: 24),
                 _SwitchTile(
+                  label: 'Show Clock & Date',
+                  subtitle: 'Display the big clock block on the home screen',
+                  value: settings.showClockOnHome,
+                  onChanged: settingsNotifier.setShowClockOnHome,
+                ),
+                const Divider(height: 24),
+                _SwitchTile(
                   label: 'Show Streak on Home',
                   subtitle: 'Display the monk streak pill under the clock',
                   value: settings.showStreakOnHome,

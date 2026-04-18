@@ -28,6 +28,9 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
   Future<void> setShowStreakOnHome(bool value) =>
       update(state.copyWith(showStreakOnHome: value));
 
+  Future<void> setShowClockOnHome(bool value) =>
+      update(state.copyWith(showClockOnHome: value));
+
   Future<void> setCustomWallpaperPath(String? path) =>
       update(state.copyWith(customWallpaperPath: path));
 

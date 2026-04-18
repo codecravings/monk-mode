@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/datasources/android_bridge.dart';
 import '../../data/models/app_info.dart';
 import '../../data/models/settings_model.dart';
+import '../../data/models/user_stats.dart';
 import '../providers/apps_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/stats_provider.dart';
@@ -29,21 +30,39 @@ class LauncherHomeScreen extends ConsumerStatefulWidget {
 class _LauncherHomeScreenState extends ConsumerState<LauncherHomeScreen> {
   Timer? _clockTick;
   late DateTime _now;
+  late String _dateKey;
 
   @override
   void initState() {
     super.initState();
     _now = DateTime.now();
+    _dateKey = UserStats.todayKey();
     // Tick at the top of the next minute, then every 60s.
     final msToNextMinute = (60 - _now.second) * 1000 - _now.millisecond;
     _clockTick = Timer(Duration(milliseconds: msToNextMinute), () {
       if (!mounted) return;
-      setState(() => _now = DateTime.now());
+      _onTick();
       _clockTick = Timer.periodic(const Duration(minutes: 1), (_) {
         if (!mounted) return;
-        setState(() => _now = DateTime.now());
+        _onTick();
       });
     });
+  }
+
+  void _onTick() {
+    final now = DateTime.now();
+    final todayKey = UserStats.todayKey();
+    final dayFlipped = todayKey != _dateKey;
+    setState(() {
+      _now = now;
+      _dateKey = todayKey;
+    });
+    if (dayFlipped) {
+      // Cross-midnight: fold yesterday into the streak and rebuild with fresh
+      // display values. The notifier's state change triggers the watcher in
+      // build(), so no second setState is needed.
+      ref.read(statsProvider.notifier).rolloverIfNeeded();
+    }
   }
 
   @override
@@ -81,11 +100,16 @@ class _LauncherHomeScreenState extends ConsumerState<LauncherHomeScreen> {
                 children: [
                   const _TopActions(),
                   const Spacer(flex: 2),
-                  _ClockBlock(
-                    now: _now,
-                    showStreak: settings.showStreakOnHome,
-                    streak: displayStreak,
-                  ),
+                  if (settings.showClockOnHome)
+                    _ClockBlock(
+                      now: _now,
+                      showStreak: settings.showStreakOnHome,
+                      streak: displayStreak,
+                    )
+                  else if (settings.showStreakOnHome)
+                    _StreakPill(streak: displayStreak)
+                        .animate()
+                        .fadeIn(duration: 400.ms),
                   const Spacer(flex: 3),
                   _Dock(pinned: settings.pinnedDockApps),
                   const SizedBox(height: 10),

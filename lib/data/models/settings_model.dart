@@ -29,6 +29,7 @@ class SettingsModel {
   final List<String> pinnedDockApps; // up to 3 package names
   final WallpaperMode wallpaperMode;
   final bool showStreakOnHome;
+  final bool showClockOnHome;
   final String? customWallpaperPath;
   final double wallpaperDimOpacity; // 0.0–0.85
 
@@ -40,6 +41,7 @@ class SettingsModel {
     this.pinnedDockApps = const [],
     this.wallpaperMode = WallpaperMode.black,
     this.showStreakOnHome = true,
+    this.showClockOnHome = true,
     this.customWallpaperPath,
     this.wallpaperDimOpacity = 0.0,
   });
@@ -52,6 +54,7 @@ class SettingsModel {
         'pinnedDockApps': pinnedDockApps,
         'wallpaperMode': wallpaperMode.name,
         'showStreakOnHome': showStreakOnHome,
+        'showClockOnHome': showClockOnHome,
         'customWallpaperPath': customWallpaperPath,
         'wallpaperDimOpacity': wallpaperDimOpacity,
       };
@@ -70,6 +73,7 @@ class SettingsModel {
           orElse: () => WallpaperMode.black,
         ),
         showStreakOnHome: json['showStreakOnHome'] as bool? ?? true,
+        showClockOnHome: json['showClockOnHome'] as bool? ?? true,
         customWallpaperPath: json['customWallpaperPath'] as String?,
         wallpaperDimOpacity:
             (json['wallpaperDimOpacity'] as num?)?.toDouble() ?? 0.0,
@@ -88,6 +92,7 @@ class SettingsModel {
     List<String>? pinnedDockApps,
     WallpaperMode? wallpaperMode,
     bool? showStreakOnHome,
+    bool? showClockOnHome,
     Object? customWallpaperPath = _kSentinel,
     double? wallpaperDimOpacity,
   }) =>
@@ -99,6 +104,7 @@ class SettingsModel {
         pinnedDockApps: pinnedDockApps ?? this.pinnedDockApps,
         wallpaperMode: wallpaperMode ?? this.wallpaperMode,
         showStreakOnHome: showStreakOnHome ?? this.showStreakOnHome,
+        showClockOnHome: showClockOnHome ?? this.showClockOnHome,
         customWallpaperPath: identical(customWallpaperPath, _kSentinel)
             ? this.customWallpaperPath
             : customWallpaperPath as String?,
