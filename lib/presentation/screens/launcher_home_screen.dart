@@ -116,6 +116,13 @@ class _LauncherHomeScreenState extends ConsumerState<LauncherHomeScreen> {
                     _StreakPill(streak: displayStreak)
                         .animate()
                         .fadeIn(duration: 400.ms),
+                  if (settings.showClockOnHome &&
+                      settings.showScreenTimeOnHome) ...[
+                    const SizedBox(height: 18),
+                    _ScreenTimeLine(
+                      budgetMinutes: settings.screenTimeBudgetMinutes,
+                    ),
+                  ],
                   const Spacer(flex: 3),
                   _Dock(pinned: settings.pinnedDockApps),
                   const SizedBox(height: 10),
@@ -483,6 +490,46 @@ class _IntentionLine extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ─── Screen-time vs budget ──────────────────────────────────────────────────
+class _ScreenTimeLine extends ConsumerWidget {
+  final int budgetMinutes;
+
+  const _ScreenTimeLine({required this.budgetMinutes});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(todayScreenTimeProvider);
+    return async.when(
+      loading: () => const SizedBox(height: 18),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (snap) {
+        if (!snap.granted) return const SizedBox.shrink();
+        final used = snap.totalMinutes;
+        final over = used > budgetMinutes;
+        final color = over
+            ? const Color(0xFFE26D6D) // soft red
+            : AppColors.secondary;
+        return Text(
+          '${_fmt(used)} / ${_fmt(budgetMinutes)}',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 12,
+            color: color,
+            letterSpacing: 1.2,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+      },
+    );
+  }
+
+  static String _fmt(int minutes) {
+    if (minutes < 60) return '${minutes}m';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
   }
 }
 
