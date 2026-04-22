@@ -32,6 +32,8 @@ class SettingsModel {
   final bool showClockOnHome;
   final String? customWallpaperPath;
   final double wallpaperDimOpacity; // 0.0–0.85
+  final bool showIntentionOnHome;
+  final String intention;
 
   const SettingsModel({
     this.countdownSeconds = 10,
@@ -44,6 +46,8 @@ class SettingsModel {
     this.showClockOnHome = true,
     this.customWallpaperPath,
     this.wallpaperDimOpacity = 0.0,
+    this.showIntentionOnHome = false,
+    this.intention = '',
   });
 
   Map<String, dynamic> toJson() => {
@@ -57,6 +61,8 @@ class SettingsModel {
         'showClockOnHome': showClockOnHome,
         'customWallpaperPath': customWallpaperPath,
         'wallpaperDimOpacity': wallpaperDimOpacity,
+        'showIntentionOnHome': showIntentionOnHome,
+        'intention': intention,
       };
 
   factory SettingsModel.fromJson(Map<String, dynamic> json) => SettingsModel(
@@ -77,6 +83,8 @@ class SettingsModel {
         customWallpaperPath: json['customWallpaperPath'] as String?,
         wallpaperDimOpacity:
             (json['wallpaperDimOpacity'] as num?)?.toDouble() ?? 0.0,
+        showIntentionOnHome: json['showIntentionOnHome'] as bool? ?? false,
+        intention: json['intention'] as String? ?? '',
       );
 
   String toJsonString() => jsonEncode(toJson());
@@ -95,6 +103,8 @@ class SettingsModel {
     bool? showClockOnHome,
     Object? customWallpaperPath = _kSentinel,
     double? wallpaperDimOpacity,
+    bool? showIntentionOnHome,
+    String? intention,
   }) =>
       SettingsModel(
         countdownSeconds: countdownSeconds ?? this.countdownSeconds,
@@ -109,5 +119,8 @@ class SettingsModel {
             ? this.customWallpaperPath
             : customWallpaperPath as String?,
         wallpaperDimOpacity: wallpaperDimOpacity ?? this.wallpaperDimOpacity,
+        showIntentionOnHome:
+            showIntentionOnHome ?? this.showIntentionOnHome,
+        intention: intention ?? this.intention,
       );
 }
