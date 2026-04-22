@@ -112,13 +112,23 @@ class _LauncherHomeScreenState extends ConsumerState<LauncherHomeScreen> {
                       intention: settings.intention,
                       onEditIntention: () => _editIntention(context),
                     )
-                  else if (settings.showStreakOnHome)
-                    _StreakPill(streak: displayStreak)
-                        .animate()
-                        .fadeIn(duration: 400.ms),
+                  else
+                    _MinimalHomeBlock(
+                      showStreak: settings.showStreakOnHome,
+                      streak: displayStreak,
+                      showIntention: settings.showIntentionOnHome,
+                      intention: settings.intention,
+                      onEditIntention: () => _editIntention(context),
+                    ),
                   if (settings.showClockOnHome &&
                       settings.showScreenTimeOnHome) ...[
                     const SizedBox(height: 18),
+                    _ScreenTimeLine(
+                      budgetMinutes: settings.screenTimeBudgetMinutes,
+                    ),
+                  ] else if (!settings.showClockOnHome &&
+                      settings.showScreenTimeOnHome) ...[
+                    const SizedBox(height: 16),
                     _ScreenTimeLine(
                       budgetMinutes: settings.screenTimeBudgetMinutes,
                     ),
@@ -451,6 +461,44 @@ class _StreakPill extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Clock-off layout: keep intention + streak usable without the time ────
+class _MinimalHomeBlock extends StatelessWidget {
+  final bool showStreak;
+  final int streak;
+  final bool showIntention;
+  final String intention;
+  final VoidCallback onEditIntention;
+
+  const _MinimalHomeBlock({
+    required this.showStreak,
+    required this.streak,
+    required this.showIntention,
+    required this.intention,
+    required this.onEditIntention,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final nothingToShow = !showStreak && !showIntention;
+    if (nothingToShow) return const SizedBox.shrink();
+    return Column(
+      children: [
+        if (showIntention)
+          _IntentionLine(
+            intention: intention,
+            onTap: onEditIntention,
+          ).animate().fadeIn(duration: 400.ms),
+        if (showStreak) ...[
+          if (showIntention) const SizedBox(height: 22),
+          _StreakPill(streak: streak)
+              .animate()
+              .fadeIn(delay: 100.ms, duration: 400.ms),
+        ],
+      ],
     );
   }
 }
