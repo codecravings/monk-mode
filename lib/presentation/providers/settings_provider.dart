@@ -43,6 +43,13 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
   Future<void> setIntention(String text) =>
       update(state.copyWith(intention: text.trim()));
 
+  Future<void> setShowScreenTimeOnHome(bool value) =>
+      update(state.copyWith(showScreenTimeOnHome: value));
+
+  Future<void> setScreenTimeBudgetMinutes(int minutes) =>
+      update(state.copyWith(
+          screenTimeBudgetMinutes: minutes.clamp(15, 720)));
+
   Future<void> setDockApps(List<String> packages) {
     final trimmed = packages.take(3).toList();
     return update(state.copyWith(pinnedDockApps: trimmed));
