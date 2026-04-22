@@ -85,6 +85,7 @@ class _MonkModeAppState extends ConsumerState<MonkModeApp>
         ref.read(permissionsProvider.notifier).refresh();
         ref.read(statsProvider.notifier).rolloverIfNeeded();
         ref.invalidate(installedAppsProvider);
+        ref.invalidate(todayScreenTimeProvider);
       });
       _scheduleRolloverTick();
     } else if (state == AppLifecycleState.paused ||
