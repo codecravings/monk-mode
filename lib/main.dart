@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'core/router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/datasources/local_storage.dart';
@@ -27,19 +28,25 @@ void main() async {
   ]);
 
   final storage = await LocalStorage.create();
+  // Decide before the first frame whether to show the splash at all — cuts
+  // the cold-start path to one screen for onboarded users (home paints
+  // immediately after Flutter's first frame, with no splash delay).
+  final skipSplash = storage.isOnboardingDone();
 
   runApp(
     ProviderScope(
       overrides: [
         storageProvider.overrideWithValue(storage),
       ],
-      child: const MonkModeApp(),
+      child: MonkModeApp(skipSplash: skipSplash),
     ),
   );
 }
 
 class MonkModeApp extends ConsumerStatefulWidget {
-  const MonkModeApp({super.key});
+  final bool skipSplash;
+
+  const MonkModeApp({super.key, required this.skipSplash});
 
   @override
   ConsumerState<MonkModeApp> createState() => _MonkModeAppState();
@@ -47,10 +54,13 @@ class MonkModeApp extends ConsumerStatefulWidget {
 
 class _MonkModeAppState extends ConsumerState<MonkModeApp>
     with WidgetsBindingObserver {
+  late final GoRouter _router;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _router = buildAppRouter(skipSplash: widget.skipSplash);
   }
 
   @override
@@ -75,7 +85,7 @@ class _MonkModeAppState extends ConsumerState<MonkModeApp>
       title: 'Monk Mode',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      routerConfig: appRouter,
+      routerConfig: _router,
     );
   }
 }
