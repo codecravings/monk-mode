@@ -184,6 +184,6 @@ If it's a clock, a streak, and three honest apps — you stand a chance.
 
 *Built with focus, by someone who also struggles with distraction.*
 
-**[@codecravings](https://github.com/codecravings)** · 
+**[@codecravings](https://github.com/codecravings)**  
 
 </div>
