@@ -59,6 +59,9 @@ class MainActivity : FlutterActivity() {
                                 ?: System.currentTimeMillis()
                             result.success(getAppUsageStats(pkg, start, end))
                         }
+                        "getTotalScreenTimeToday" -> {
+                            result.success(getTotalScreenTimeToday())
+                        }
                         "launchApp" -> {
                             val pkg = call.argument<String>("packageName") ?: ""
                             val ok = launchApp(pkg)
@@ -249,6 +252,34 @@ class MainActivity : FlutterActivity() {
             "lastOpenTimestamp" to lastOpenTs,
             "lastSessionMinutes" to (lastSessionMs / 60000L).toInt(),
             "avgSessionMinutes" to (avgMs / 60000L).toInt()
+        )
+    }
+
+    private fun getTotalScreenTimeToday(): Map<String, Any> {
+        val empty = mapOf<String, Any>("granted" to false, "totalMinutes" to 0)
+        if (!isUsageStatsGranted()) return empty
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return empty
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val startOfToday = cal.timeInMillis
+        val now = System.currentTimeMillis()
+        val stats = usm.queryUsageStats(
+            UsageStatsManager.INTERVAL_DAILY, startOfToday, now
+        ) ?: return mapOf("granted" to true, "totalMinutes" to 0)
+
+        var totalMs = 0L
+        for (s in stats) {
+            if (s.packageName == this.packageName) continue
+            totalMs += s.totalTimeInForeground
+        }
+        return mapOf(
+            "granted" to true,
+            "totalMinutes" to (totalMs / 60000L).toInt()
         )
     }
 
