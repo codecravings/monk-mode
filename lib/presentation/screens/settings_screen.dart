@@ -130,6 +130,26 @@ class SettingsScreen extends ConsumerWidget {
                     onChanged: settingsNotifier.setIntention,
                   ),
                 ],
+                const Divider(height: 24),
+                _SwitchTile(
+                  label: 'Show Screen-Time Budget',
+                  subtitle: 'Home shows today usage vs your daily limit',
+                  value: settings.showScreenTimeOnHome,
+                  onChanged: settingsNotifier.setShowScreenTimeOnHome,
+                ),
+                if (settings.showScreenTimeOnHome) ...[
+                  const SizedBox(height: 8),
+                  _SliderTile(
+                    label: 'Daily Budget',
+                    value: settings.screenTimeBudgetMinutes.toDouble(),
+                    min: 15,
+                    max: 720,
+                    divisions: 47,
+                    formatValue: _formatBudget,
+                    onChanged: (v) => settingsNotifier
+                        .setScreenTimeBudgetMinutes(v.round()),
+                  ),
+                ],
               ],
             ),
           ).animate().fadeIn(delay: 50.ms, duration: 400.ms),
@@ -314,6 +334,14 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  static String _formatBudget(double minutes) {
+    final total = minutes.round();
+    if (total < 60) return '${total}m';
+    final h = total ~/ 60;
+    final m = total % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+
   void _confirmDialog({
     required BuildContext context,
     required String title,
@@ -402,6 +430,7 @@ class _SliderTile extends StatelessWidget {
   final int? divisions;
   final String? unit;
   final List<String>? labels;
+  final String Function(double)? formatValue;
   final ValueChanged<double> onChanged;
 
   const _SliderTile({
@@ -412,14 +441,17 @@ class _SliderTile extends StatelessWidget {
     this.divisions,
     this.unit,
     this.labels,
+    this.formatValue,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final displayVal = labels != null
-        ? labels![(value - min).round().clamp(0, labels!.length - 1)]
-        : '${value.round()}${unit ?? ''}';
+    final displayVal = formatValue != null
+        ? formatValue!(value)
+        : labels != null
+            ? labels![(value - min).round().clamp(0, labels!.length - 1)]
+            : '${value.round()}${unit ?? ''}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
