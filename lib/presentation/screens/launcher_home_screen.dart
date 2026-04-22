@@ -57,6 +57,9 @@ class _LauncherHomeScreenState extends ConsumerState<LauncherHomeScreen> {
       _now = now;
       _dateKey = todayKey;
     });
+    // Re-fetch today's screen-time from UsageStatsManager so the home
+    // screen's budget line stays roughly in sync while the user sits on it.
+    ref.invalidate(todayScreenTimeProvider);
     if (dayFlipped) {
       // Cross-midnight: fold yesterday into the streak and rebuild with fresh
       // display values. The notifier's state change triggers the watcher in
