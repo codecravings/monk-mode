@@ -108,6 +108,9 @@ class _LauncherHomeScreenState extends ConsumerState<LauncherHomeScreen> {
                       now: _now,
                       showStreak: settings.showStreakOnHome,
                       streak: displayStreak,
+                      showIntention: settings.showIntentionOnHome,
+                      intention: settings.intention,
+                      onEditIntention: () => _editIntention(context),
                     )
                   else if (settings.showStreakOnHome)
                     _StreakPill(streak: displayStreak)
@@ -125,6 +128,67 @@ class _LauncherHomeScreenState extends ConsumerState<LauncherHomeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _editIntention(BuildContext context) async {
+    final current = ref.read(settingsProvider).intention;
+    final controller = TextEditingController(text: current);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          "Today's intention",
+          style: GoogleFonts.spaceGrotesk(
+            color: AppColors.primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 80,
+          textCapitalization: TextCapitalization.sentences,
+          style: GoogleFonts.spaceGrotesk(color: AppColors.primary),
+          decoration: InputDecoration(
+            hintText: 'Ship the draft. Hit the gym. Read 20 pages.',
+            hintStyle: GoogleFonts.spaceGrotesk(color: AppColors.muted),
+            counterStyle: GoogleFonts.spaceGrotesk(color: AppColors.muted),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.spaceGrotesk(color: AppColors.muted),
+            ),
+          ),
+          if (current.isNotEmpty)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: Text(
+                'Clear',
+                style: GoogleFonts.spaceGrotesk(color: AppColors.secondary),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: Text(
+              'Save',
+              style: GoogleFonts.spaceGrotesk(
+                color: AppColors.monkGold,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (result != null) {
+      await ref.read(settingsProvider.notifier).setIntention(result);
+    }
   }
 
   void _showQuickActions(BuildContext context) {
@@ -252,11 +316,17 @@ class _ClockBlock extends StatelessWidget {
   final DateTime now;
   final bool showStreak;
   final int streak;
+  final bool showIntention;
+  final String intention;
+  final VoidCallback onEditIntention;
 
   const _ClockBlock({
     required this.now,
     required this.showStreak,
     required this.streak,
+    required this.showIntention,
+    required this.intention,
+    required this.onEditIntention,
   });
 
   @override
@@ -287,6 +357,13 @@ class _ClockBlock extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ).animate().fadeIn(delay: 100.ms, duration: 400.ms),
+        if (showIntention) ...[
+          const SizedBox(height: 18),
+          _IntentionLine(
+            intention: intention,
+            onTap: onEditIntention,
+          ).animate().fadeIn(delay: 150.ms, duration: 400.ms),
+        ],
         if (showStreak) ...[
           const SizedBox(height: 26),
           _StreakPill(streak: streak)
@@ -366,6 +443,44 @@ class _StreakPill extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Intention line (one-liner the user sets each morning) ──────────────────
+class _IntentionLine extends StatelessWidget {
+  final String intention;
+  final VoidCallback onTap;
+
+  const _IntentionLine({required this.intention, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final empty = intention.isEmpty;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Padding(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            empty ? 'Tap to set today\'s intention' : '"$intention"',
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 13,
+              fontStyle: empty ? FontStyle.normal : FontStyle.italic,
+              fontWeight: FontWeight.w500,
+              color: empty ? AppColors.muted : AppColors.secondary,
+              letterSpacing: 0.3,
+              height: 1.4,
+            ),
+          ),
+        ),
       ),
     );
   }
