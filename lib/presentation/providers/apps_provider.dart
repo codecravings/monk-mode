@@ -141,3 +141,11 @@ final appUsageProvider = FutureProvider.family
   if (packageName.isEmpty) return AppUsageStats.empty;
   return AndroidBridge.getAppUsageStats(packageName);
 });
+
+/// Device-wide on-screen foreground minutes since midnight, excluding Monk Mode.
+/// Fed by native UsageStatsManager. Re-fetched whenever this provider is
+/// invalidated (e.g. on app resume or the launcher's per-minute tick).
+final todayScreenTimeProvider =
+    FutureProvider<({bool granted, int totalMinutes})>((ref) async {
+  return AndroidBridge.getTotalScreenTimeToday();
+});
