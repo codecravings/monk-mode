@@ -37,6 +37,12 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
   Future<void> setWallpaperDimOpacity(double opacity) =>
       update(state.copyWith(wallpaperDimOpacity: opacity.clamp(0.0, 0.85)));
 
+  Future<void> setShowIntentionOnHome(bool value) =>
+      update(state.copyWith(showIntentionOnHome: value));
+
+  Future<void> setIntention(String text) =>
+      update(state.copyWith(intention: text.trim()));
+
   Future<void> setDockApps(List<String> packages) {
     final trimmed = packages.take(3).toList();
     return update(state.copyWith(pinnedDockApps: trimmed));
