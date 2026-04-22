@@ -77,10 +77,15 @@ class _MonkModeAppState extends ConsumerState<MonkModeApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Re-read permissions from the OS and advance any crossed midnights.
-      ref.read(permissionsProvider.notifier).refresh();
-      ref.read(statsProvider.notifier).rolloverIfNeeded();
-      ref.invalidate(installedAppsProvider);
+      // Defer to the next frame so the first paint after resume is not
+      // blocked by provider refreshes — fixes the "stuck on splash" look
+      // some users hit when bringing the app back from recents.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(permissionsProvider.notifier).refresh();
+        ref.read(statsProvider.notifier).rolloverIfNeeded();
+        ref.invalidate(installedAppsProvider);
+      });
       _scheduleRolloverTick();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
