@@ -146,6 +146,25 @@ class AndroidBridge {
     }
   }
 
+  /// Total on-screen foreground time for today across all apps (excluding
+  /// Monk Mode itself), in minutes. Returns `(granted: false, totalMinutes: 0)`
+  /// if the usage-stats permission isn't granted.
+  static Future<({bool granted, int totalMinutes})>
+      getTotalScreenTimeToday() async {
+    try {
+      final result = await _channel
+          .invokeMethod<Map<dynamic, dynamic>>('getTotalScreenTimeToday');
+      if (result == null) return (granted: false, totalMinutes: 0);
+      final m = Map<String, dynamic>.from(result);
+      return (
+        granted: m['granted'] as bool? ?? false,
+        totalMinutes: (m['totalMinutes'] as num?)?.toInt() ?? 0,
+      );
+    } catch (_) {
+      return (granted: false, totalMinutes: 0);
+    }
+  }
+
   static Future<bool> launchApp(String packageName) async {
     try {
       final ok = await _channel
