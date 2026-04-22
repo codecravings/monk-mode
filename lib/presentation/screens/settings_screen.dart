@@ -115,6 +115,21 @@ class SettingsScreen extends ConsumerWidget {
                   value: settings.showStreakOnHome,
                   onChanged: settingsNotifier.setShowStreakOnHome,
                 ),
+                const Divider(height: 24),
+                _SwitchTile(
+                  label: "Show Today's Intention",
+                  subtitle:
+                      'One-line focus set each morning, editable from home',
+                  value: settings.showIntentionOnHome,
+                  onChanged: settingsNotifier.setShowIntentionOnHome,
+                ),
+                if (settings.showIntentionOnHome) ...[
+                  const SizedBox(height: 12),
+                  _IntentionEditor(
+                    value: settings.intention,
+                    onChanged: settingsNotifier.setIntention,
+                  ),
+                ],
               ],
             ),
           ).animate().fadeIn(delay: 50.ms, duration: 400.ms),
@@ -867,6 +882,88 @@ class _DimSliderState extends State<_DimSlider> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _IntentionEditor extends StatefulWidget {
+  final String value;
+  final Future<void> Function(String) onChanged;
+
+  const _IntentionEditor({required this.value, required this.onChanged});
+
+  @override
+  State<_IntentionEditor> createState() => _IntentionEditorState();
+}
+
+class _IntentionEditorState extends State<_IntentionEditor> {
+  late final TextEditingController _controller;
+  late final FocusNode _focus;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+    _focus = FocusNode()..addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _IntentionEditor old) {
+    super.didUpdateWidget(old);
+    // Only overwrite the buffer if the stored value changed and the user is
+    // not currently editing — otherwise we'd clobber in-flight typing.
+    if (!_focus.hasFocus && widget.value != _controller.text) {
+      _controller.text = widget.value;
+    }
+  }
+
+  void _onFocusChange() {
+    // Persist on blur — matches the "set it and move on" mental model.
+    if (!_focus.hasFocus && _controller.text != widget.value) {
+      widget.onChanged(_controller.text);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_onFocusChange);
+    _focus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      focusNode: _focus,
+      maxLength: 80,
+      textCapitalization: TextCapitalization.sentences,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (v) => widget.onChanged(v),
+      style: GoogleFonts.spaceGrotesk(
+        color: AppColors.primary,
+        fontSize: 14,
+      ),
+      decoration: InputDecoration(
+        hintText: 'Ship the draft. Hit the gym. Read 20 pages.',
+        hintStyle: GoogleFonts.spaceGrotesk(color: AppColors.muted),
+        counterStyle: GoogleFonts.spaceGrotesk(color: AppColors.muted),
+        filled: true,
+        fillColor: AppColors.surfaceElevated,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.monkGold),
+        ),
+      ),
     );
   }
 }
