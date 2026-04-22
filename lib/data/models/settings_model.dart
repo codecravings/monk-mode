@@ -34,6 +34,8 @@ class SettingsModel {
   final double wallpaperDimOpacity; // 0.0–0.85
   final bool showIntentionOnHome;
   final String intention;
+  final bool showScreenTimeOnHome;
+  final int screenTimeBudgetMinutes; // daily screen-time budget target
 
   const SettingsModel({
     this.countdownSeconds = 10,
@@ -48,6 +50,8 @@ class SettingsModel {
     this.wallpaperDimOpacity = 0.0,
     this.showIntentionOnHome = false,
     this.intention = '',
+    this.showScreenTimeOnHome = false,
+    this.screenTimeBudgetMinutes = 120,
   });
 
   Map<String, dynamic> toJson() => {
@@ -63,6 +67,8 @@ class SettingsModel {
         'wallpaperDimOpacity': wallpaperDimOpacity,
         'showIntentionOnHome': showIntentionOnHome,
         'intention': intention,
+        'showScreenTimeOnHome': showScreenTimeOnHome,
+        'screenTimeBudgetMinutes': screenTimeBudgetMinutes,
       };
 
   factory SettingsModel.fromJson(Map<String, dynamic> json) => SettingsModel(
@@ -85,6 +91,10 @@ class SettingsModel {
             (json['wallpaperDimOpacity'] as num?)?.toDouble() ?? 0.0,
         showIntentionOnHome: json['showIntentionOnHome'] as bool? ?? false,
         intention: json['intention'] as String? ?? '',
+        showScreenTimeOnHome:
+            json['showScreenTimeOnHome'] as bool? ?? false,
+        screenTimeBudgetMinutes:
+            (json['screenTimeBudgetMinutes'] as num?)?.toInt() ?? 120,
       );
 
   String toJsonString() => jsonEncode(toJson());
@@ -105,6 +115,8 @@ class SettingsModel {
     double? wallpaperDimOpacity,
     bool? showIntentionOnHome,
     String? intention,
+    bool? showScreenTimeOnHome,
+    int? screenTimeBudgetMinutes,
   }) =>
       SettingsModel(
         countdownSeconds: countdownSeconds ?? this.countdownSeconds,
@@ -122,5 +134,9 @@ class SettingsModel {
         showIntentionOnHome:
             showIntentionOnHome ?? this.showIntentionOnHome,
         intention: intention ?? this.intention,
+        showScreenTimeOnHome:
+            showScreenTimeOnHome ?? this.showScreenTimeOnHome,
+        screenTimeBudgetMinutes:
+            screenTimeBudgetMinutes ?? this.screenTimeBudgetMinutes,
       );
 }
