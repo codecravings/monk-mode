@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,6 +56,7 @@ class MonkModeApp extends ConsumerStatefulWidget {
 
 class _MonkModeAppState extends ConsumerState<MonkModeApp>
     with WidgetsBindingObserver {
+  Timer? _rolloverTimer;
   late final GoRouter _router;
 
   @override
@@ -61,10 +64,12 @@ class _MonkModeAppState extends ConsumerState<MonkModeApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _router = buildAppRouter(skipSplash: widget.skipSplash);
+    _scheduleRolloverTick();
   }
 
   @override
   void dispose() {
+    _rolloverTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -76,7 +81,29 @@ class _MonkModeAppState extends ConsumerState<MonkModeApp>
       ref.read(permissionsProvider.notifier).refresh();
       ref.read(statsProvider.notifier).rolloverIfNeeded();
       ref.invalidate(installedAppsProvider);
+      _scheduleRolloverTick();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _rolloverTimer?.cancel();
+      _rolloverTimer = null;
     }
+  }
+
+  /// Fire on the next minute-top then every 60s so the streak rolls across
+  /// midnight even if the app is left open — without relying on resume.
+  void _scheduleRolloverTick() {
+    _rolloverTimer?.cancel();
+    final now = DateTime.now();
+    final msToNextMinute =
+        (60 - now.second) * 1000 - now.millisecond;
+    _rolloverTimer = Timer(Duration(milliseconds: msToNextMinute), () {
+      if (!mounted) return;
+      ref.read(statsProvider.notifier).rolloverIfNeeded();
+      _rolloverTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+        if (!mounted) return;
+        ref.read(statsProvider.notifier).rolloverIfNeeded();
+      });
+    });
   }
 
   @override
