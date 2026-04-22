@@ -18,18 +18,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigate();
-  }
-
-  Future<void> _navigate() async {
-    await Future.delayed(const Duration(milliseconds: 1400));
-    if (!mounted) return;
-    final storage = ref.read(storageProvider);
-    if (storage.isOnboardingDone()) {
-      context.go('/home');
-    } else {
-      context.go('/onboarding');
-    }
+    // Navigate on the very next frame — onboarded users skip this screen
+    // entirely via the router's initialLocation, so this path only runs for
+    // first-launch → onboarding. No artificial delay; the black launch window
+    // + black splash + black onboarding background make the handoff silent.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final storage = ref.read(storageProvider);
+      context.go(storage.isOnboardingDone() ? '/home' : '/onboarding');
+    });
   }
 
   @override
