@@ -15,9 +15,13 @@ import '../presentation/screens/settings_screen.dart';
 import '../presentation/screens/splash_screen.dart';
 import '../presentation/screens/vault_screen.dart';
 
-final appRouter = GoRouter(
-  initialLocation: '/',
-  routes: [
+GoRouter buildAppRouter({required bool skipSplash}) => GoRouter(
+      initialLocation: skipSplash ? '/home' : '/',
+      routes: _routes,
+      errorBuilder: _errorBuilder,
+    );
+
+final List<RouteBase> _routes = [
     GoRoute(path: '/', builder: (_, __) => const SplashScreen()),
     GoRoute(
       path: '/onboarding',
@@ -101,14 +105,14 @@ final appRouter = GoRouter(
         );
       },
     ),
-  ],
-  errorBuilder: (context, state) => Scaffold(
-    backgroundColor: const Color(0xFF080808),
-    body: Center(
-      child: Text(
-        'Route not found: ${state.uri}',
-        style: const TextStyle(color: Colors.white),
+];
+
+Widget _errorBuilder(BuildContext context, GoRouterState state) => Scaffold(
+      backgroundColor: const Color(0xFF080808),
+      body: Center(
+        child: Text(
+          'Route not found: ${state.uri}',
+          style: const TextStyle(color: Colors.white),
+        ),
       ),
-    ),
-  ),
-);
+    );
